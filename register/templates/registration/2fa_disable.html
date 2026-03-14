@@ -1,0 +1,41 @@
+{% extends 'register/base.html' %}
+{% load crispy_forms_tags %}
+
+{% block title %}Disable Two-Factor Authentication - File Tracking System{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card mt-4">
+                <div class="card-header bg-danger text-white">
+                    <h4 class="mb-0"><i class="bi bi-shield-exclamation"></i> Disable Two-Factor Authentication</h4>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-warning">
+                        <i class="bi bi-exclamation-triangle"></i>
+                        <strong>Warning:</strong> Disabling two-factor authentication will make your account less secure.
+                    </div>
+                    
+                    <p>Are you sure you want to disable two-factor authentication?</p>
+                    
+                    <form method="post">
+                        {% csrf_token %}
+                        
+                        <div class="mb-3">
+                            <label for="id_confirm" class="form-label">Type "disable" to confirm:</label>
+                            <input type="text" name="confirm" id="id_confirm" class="form-control" 
+                                   placeholder="disable" required>
+                        </div>
+                        
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-danger">Disable 2FA</button>
+                            <a href="{% url 'account_settings' %}" class="btn btn-outline-secondary">Cancel</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

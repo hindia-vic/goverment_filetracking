@@ -1,0 +1,46 @@
+{% extends 'register/base.html' %}
+
+{% block title %}Backup Codes - File Tracking System{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card mt-4">
+                <div class="card-header bg-success text-white">
+                    <h4 class="mb-0"><i class="bi bi-key"></i> Backup Codes</h4>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-warning">
+                        <i class="bi bi-exclamation-triangle"></i>
+                        <strong>Important:</strong> Save these backup codes in a secure place. Each code can only be used once.
+                    </div>
+                    
+                    <p>Use these backup codes to access your account if you lose your authenticator device:</p>
+                    
+                    <div class="row">
+                        {% for code in backup_codes %}
+                        <div class="col-md-4 mb-2">
+                            <code class="p-2 bg-light border rounded d-block text-center">{{ code }}</code>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    
+                    <div class="alert alert-info mt-3">
+                        <strong>Tip:</strong> Store these codes securely. You can:
+                        <ul class="mb-0">
+                            <li>Print them and store in a secure location</li>
+                            <li>Save in a password manager</li>
+                            <li>Write them down and store in a safe</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="d-grid gap-2 mt-4">
+                        <a href="{% url 'account_settings' %}" class="btn btn-primary">Back to Account Settings</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

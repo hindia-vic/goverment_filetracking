@@ -1,0 +1,55 @@
+{% extends 'register/base.html' %}
+{% load crispy_forms_tags %}
+
+{% block title %}Setup Two-Factor Authentication - File Tracking System{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card mt-4">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0"><i class="bi bi-shield-lock"></i> Setup Two-Factor Authentication</h4>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info">
+                        <h5><i class="bi bi-info-circle"></i> How to setup:</h5>
+                        <ol class="mb-0">
+                            <li>Download an authenticator app like Google Authenticator, Authy, or Microsoft Authenticator</li>
+                            <li>Scan the QR code below with your authenticator app</li>
+                            <li>Enter the 6-digit code from your app to verify</li>
+                        </ol>
+                    </div>
+                    
+                    <div class="text-center my-4">
+                        <h5>Scan this QR Code</h5>
+                        <img src="data:image/png;base64,{{ qr_code }}" alt="QR Code" class="img-fluid" style="max-width: 250px;">
+                    </div>
+                    
+                    <div class="alert alert-warning">
+                        <strong>Manual Setup:</strong> If you can't scan the QR code, enter this code in your app:
+                        <code class="d-block mt-2" id="secret-code">{{ secret }}</code>
+                    </div>
+                    
+                    <form method="post" class="mt-4">
+                        {% csrf_token %}
+                        <input type="hidden" name="secret" value="{{ secret }}">
+                        
+                        <div class="mb-3">
+                            <label for="id_token" class="form-label">Enter 6-digit verification code:</label>
+                            <input type="text" name="token" id="id_token" class="form-control" 
+                                   placeholder="000000" maxlength="6" pattern="[0-9]*" inputmode="numeric"
+                                   required autocomplete="one-time-code">
+                        </div>
+                        
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-primary">Verify & Enable 2FA</button>
+                            <a href="{% url 'account_settings' %}" class="btn btn-outline-secondary">Cancel</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

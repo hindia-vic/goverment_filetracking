@@ -51,6 +51,9 @@ INSTALLED_APPS = [
     'django.contrib.sites',
     'crispy_forms',
     'crispy_bootstrap5',
+    'rest_framework',
+    'django_otp',
+    'django_otp.plugins.otp_totp',
     'register',
 ]
 
@@ -63,6 +66,7 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'django.contrib.sites.middleware.CurrentSiteMiddleware',
+    'django_otp.middleware.OTPMiddleware',
 ]
 
 ROOT_URLCONF = 'file_system.urls'
@@ -147,8 +151,8 @@ LOGIN_URL = 'login'
 
 # Authentication backends
 AUTHENTICATION_BACKENDS = [
-    'register.backends.EmployeeIDBackend',
     'django.contrib.auth.backends.ModelBackend',
+    'register.backends.EmployeeIDBackend',
 ]
 
 # File tracking settings
@@ -167,3 +171,20 @@ DEFAULT_FROM_EMAIL = 'File Tracking System <env("EMAIL_HOST_USER")>'
 # Domain for password reset emails
 SITE_DOMAIN = 'localhost:8000'
 SITE_ID = 1
+
+# Django REST Framework configuration
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.SessionAuthentication',
+        'rest_framework.authentication.BasicAuthentication',
+    ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',
+    ],
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'PAGE_SIZE': 20,
+    'DEFAULT_RENDERER_CLASSES': [
+        'rest_framework.renderers.JSONRenderer',
+        'rest_framework.renderers.BrowsableAPIRenderer',
+    ],
+}

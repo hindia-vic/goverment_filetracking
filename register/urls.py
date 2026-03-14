@@ -1,8 +1,44 @@
-from django.urls import path
+from django.urls import path, include
 from django.contrib.auth import views as auth_views
+from rest_framework.routers import DefaultRouter
 from . import views
+from .api import (
+    DepartmentViewSet, FileViewSet, FileMovementViewSet,
+    FileRequestViewSet, NotificationViewSet, ActivityLogViewSet,
+    UserProfileViewSet, api_status, dashboard_stats
+)
+from .two_factor_views import (
+    setup_2fa, disable_2fa, verify_2fa, 
+    view_backup_codes, regenerate_backup_codes,
+    login_view, verify_2fa_login
+)
+
+# Create router for API viewsets
+router = DefaultRouter()
+router.register(r'departments', DepartmentViewSet)
+router.register(r'files', FileViewSet)
+router.register(r'movements', FileMovementViewSet)
+router.register(r'requests', FileRequestViewSet)
+router.register(r'notifications', NotificationViewSet)
+router.register(r'activity', ActivityLogViewSet)
+router.register(r'profiles', UserProfileViewSet)
 
 urlpatterns = [
+    # API endpoints
+    path('api/', include(router.urls)),
+    path('api/status/', api_status, name='api_status'),
+    path('api/dashboard/', dashboard_stats, name='api_dashboard_stats'),
+    
+    # Two-Factor Authentication
+    path('2fa/setup/', setup_2fa, name='setup_2fa'),
+    path('2fa/disable/', disable_2fa, name='disable_2fa'),
+    path('2fa/verify/', verify_2fa, name='verify_2fa'),
+    path('2fa/backup-codes/', view_backup_codes, name='view_backup_codes'),
+    path('2fa/regenerate-codes/', regenerate_backup_codes, name='regenerate_backup_codes'),
+    
+    # Login with 2FA
+    path('login/verify/', verify_2fa_login, name='verify_2fa_login'),
+    
     # Dashboard and file views
     path('', views.DashboardView.as_view(), name='dashboard'),
     path('files/', views.FileListView.as_view(), name='file_list'),

@@ -1,0 +1,45 @@
+{% extends 'register/base.html' %}
+{% load crispy_forms_tags %}
+
+{% block title %}Two-Factor Authentication - File Tracking System{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card mt-5">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0"><i class="bi bi-shield-lock"></i> Two-Factor Authentication</h4>
+                </div>
+                <div class="card-body">
+                    <div class="text-center mb-4">
+                        <i class="bi bi-phone" style="font-size: 3rem;"></i>
+                        <p class="mt-3">Enter the 6-digit code from your authenticator app</p>
+                    </div>
+                    
+                    <form method="post">
+                        {% csrf_token %}
+                        
+                        <div class="mb-3">
+                            <label for="id_token" class="form-label">Verification Code:</label>
+                            <input type="text" name="token" id="id_token" class="form-control form-control-lg text-center" 
+                                   placeholder="000000" maxlength="6" pattern="[0-9]*" inputmode="numeric"
+                                   required autofocus autocomplete="one-time-code">
+                        </div>
+                        
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-primary btn-lg">Verify</button>
+                        </div>
+                    </form>
+                    
+                    <div class="text-center mt-3">
+                        <small class="text-muted">
+                            Having trouble? Contact your administrator for help.
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
