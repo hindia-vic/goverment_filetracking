@@ -1,0 +1,105 @@
+{% extends 'register/base.html' %}
+
+{% block title %}Request File - File Tracking System{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-8">
+        <h2><i class="bi bi-clipboard me-2"></i>Request File</h2>
+    </div>
+    <div class="col-md-4 text-end">
+        <a href="{% url 'file_detail' file.uuid %}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-1"></i>Cancel
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-warning bg-opacity-10">
+                <h5 class="mb-0 text-warning">
+                    <i class="bi bi-file-earmark-text me-2"></i>Request: {{ file.reference }}
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-info mb-4">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <small class="text-muted d-block">File Title</small>
+                            <strong>{{ file.title }}</strong>
+                        </div>
+                        <div class="col-md-6">
+                            <small class="text-muted d-block">Department</small>
+                            <strong>{{ file.department.name }}</strong>
+                        </div>
+                    </div>
+                </div>
+                
+                <form method="post">
+                    {% csrf_token %}
+                    {% load crispy_forms_tags %}
+                    {{ form|crispy }}
+                    
+                    <div class="alert alert-warning mt-3">
+                        <i class="bi bi-info-circle me-2"></i>
+                        <strong>Note:</strong> Your request will be reviewed by the Registry Officer. You will be notified when the file is ready for pickup.
+                    </div>
+                    
+                    <div class="d-grid gap-2 mt-4">
+                        <button type="submit" class="btn btn-warning btn-lg">
+                            <i class="bi bi-send me-2"></i>Submit Request
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-4">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white">
+                <h5 class="mb-0"><i class="bi bi-question-circle me-2"></i>How It Works</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-flex mb-3">
+                    <div class="bg-primary bg-opacity-10 p-2 rounded me-3">
+                        <i class="bi bi-1-circle text-primary"></i>
+                    </div>
+                    <div>
+                        <strong>Submit Request</strong>
+                        <p class="small text-muted mb-0">Fill out the purpose for requesting the file</p>
+                    </div>
+                </div>
+                <div class="d-flex mb-3">
+                    <div class="bg-warning bg-opacity-10 p-2 rounded me-3">
+                        <i class="bi bi-2-circle text-warning"></i>
+                    </div>
+                    <div>
+                        <strong>Wait for Approval</strong>
+                        <p class="small text-muted mb-0">Registry will review and approve your request</p>
+                    </div>
+                </div>
+                <div class="d-flex mb-3">
+                    <div class="bg-success bg-opacity-10 p-2 rounded me-3">
+                        <i class="bi bi-3-circle text-success"></i>
+                    </div>
+                    <div>
+                        <strong>Pickup File</strong>
+                        <p class="small text-muted mb-0">You'll be notified when ready for pickup</p>
+                    </div>
+                </div>
+                <div class="d-flex">
+                    <div class="bg-info bg-opacity-10 p-2 rounded me-3">
+                        <i class="bi bi-4-circle text-info"></i>
+                    </div>
+                    <div>
+                        <strong>Confirm Receipt</strong>
+                        <p class="small text-muted mb-0">Confirm when you receive the file</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

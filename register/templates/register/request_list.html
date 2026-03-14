@@ -1,0 +1,100 @@
+{% extends 'register/base.html' %}
+
+{% block title %}File Requests - File Tracking System{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-8">
+        <h2><i class="bi bi-clipboard-check me-2"></i>File Requests</h2>
+    </div>
+</div>
+
+<!-- Status Tabs -->
+<ul class="nav nav-pills mb-4">
+    <li class="nav-item">
+        <a class="nav-link {% if current_status == 'pending' %}active{% endif %}" href="?status=pending">
+            Pending
+            {% if pending_count %}<span class="badge bg-danger ms-1">{{ pending_count }}</span>{% endif %}
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link {% if current_status == 'ready_for_pickup' %}active{% endif %}" href="?status=ready_for_pickup">Ready for Pickup</a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link {% if current_status == 'handed_over' %}active{% endif %}" href="?status=handed_over">Handed Over</a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link {% if current_status == 'confirmed' %}active{% endif %}" href="?status=confirmed">Completed</a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link {% if current_status == 'rejected' %}active{% endif %}" href="?status=rejected">Rejected</a>
+    </li>
+</ul>
+
+<!-- Requests Table -->
+<div class="card border-0 shadow-sm">
+    <div class="card-body p-0">
+        {% if requests %}
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Request ID</th>
+                        <th>File</th>
+                        <th>Requested By</th>
+                        <th>Department</th>
+                        <th>Status</th>
+                        <th>Date</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for req in requests %}
+                    <tr>
+                        <td>#{{ req.id }}</td>
+                        <td>
+                            <a href="{% url 'file_detail' req.file.uuid %}">
+                                <strong>{{ req.file.reference }}</strong>
+                            </a>
+                            <br><small class="text-muted">{{ req.file.title|truncatechars:20 }}</small>
+                        </td>
+                        <td>{{ req.requesting_user.get_full_name|default:req.requesting_user.username }}</td>
+                        <td>{{ req.requesting_department.name|default:"-" }}</td>
+                        <td>
+                            <span class="badge 
+                                {% if req.status == 'pending' %}bg-secondary
+                                {% elif req.status == 'approved' %}bg-primary
+                                {% elif req.status == 'ready_for_pickup' %}bg-success
+                                {% elif req.status == 'handed_over' %}bg-warning
+                                {% elif req.status == 'confirmed' %}bg-info
+                                {% elif req.status == 'rejected' %}bg-danger{% endif %}">
+                                {{ req.get_status_display }}
+                            </span>
+                        </td>
+                        <td><small>{{ req.created_at|date:"M d, Y" }}</small></td>
+                        <td>
+                            {% if req.status == 'pending' %}
+                            <a href="{% url 'request_process' req.pk %}" class="btn btn-sm btn-primary">Process</a>
+                            {% elif req.status == 'ready_for_pickup' %}
+                            <a href="{% url 'request_handover' req.pk %}" class="btn btn-sm btn-success">Handover</a>
+                            {% elif req.status == 'handed_over' %}
+                            <a href="{% url 'request_confirm' req.pk %}" class="btn btn-sm btn-info">Confirm</a>
+                            {% else %}
+                            <a href="{% url 'file_detail' req.file.uuid %}" class="btn btn-sm btn-outline-secondary">View</a>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-5">
+            <i class="bi bi-inbox fs-1 text-muted mb-3"></i>
+            <h5>No requests found</h5>
+            <p class="text-muted">There are no {{ current_status }} requests</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

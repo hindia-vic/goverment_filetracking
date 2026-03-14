@@ -1,0 +1,102 @@
+{% extends 'register/base.html' %}
+
+{% block title %}Confirm Receipt - File Tracking System{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-8">
+        <h2><i class="bi bi-check2-circle me-2"></i>Confirm Receipt</h2>
+    </div>
+    <div class="col-md-4 text-end">
+        <a href="{% url 'file_detail' file_request.file.uuid %}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-1"></i>Back
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-success bg-opacity-10">
+                <h5 class="mb-0 text-success">
+                    <i class="bi bi-check2-circle me-2"></i>Confirm You Received the File
+                </h5>
+            </div>
+            <div class="card-body">
+                <!-- Request Details -->
+                <div class="alert alert-info mb-4">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <small class="text-muted d-block">File Reference</small>
+                            <strong>{{ file_request.file.reference }}</strong>
+                        </div>
+                        <div class="col-md-6">
+                            <small class="text-muted d-block">File Title</small>
+                            <strong>{{ file_request.file.title }}</strong>
+                        </div>
+                    </div>
+                    <hr>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <small class="text-muted d-block">Handover Date</small>
+                            <strong>{{ file_request.processed_at|date:"F d, Y" }}</strong>
+                        </div>
+                        <div class="col-md-6">
+                            <small class="text-muted d-block">Handed By</small>
+                            <strong>{{ file_request.processed_by.get_full_name }}</strong>
+                        </div>
+                    </div>
+                </div>
+                
+                <form method="post">
+                    {% csrf_token %}
+                    {% load crispy_forms_tags %}
+                    {{ form|crispy }}
+                    
+                    <div class="alert alert-warning mt-3">
+                        <i class="bi bi-info-circle me-2"></i>
+                        <strong>Confirmation:</strong> Enter your Employee ID to confirm that you have received the file.
+                    </div>
+                    
+                    <div class="d-grid gap-2 mt-4">
+                        <button type="submit" class="btn btn-success btn-lg">
+                            <i class="bi bi-check-all me-2"></i>Confirm Receipt
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-4">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white">
+                <h5 class="mb-0"><i class="bi bi-info-circle me-2"></i>Your Information</h5>
+            </div>
+            <div class="card-body">
+                <dl class="row">
+                    <dt class="col-sm-5">Name</dt>
+                    <dd class="col-sm-7">{{ user.get_full_name }}</dd>
+                    
+                    <dt class="col-sm-5">Employee ID</dt>
+                    <dd class="col-sm-7">{{ user.profile.employee_id|default:"-" }}</dd>
+                    
+                    <dt class="col-sm-5">Department</dt>
+                    <dd class="col-sm-7">{{ user.profile.department.name|default:"-" }}</dd>
+                </dl>
+            </div>
+        </div>
+        
+        <div class="card border-0 shadow-sm mt-3">
+            <div class="card-header bg-white">
+                <h5 class="mb-0"><i class="bi bi-question-circle me-2"></i>Need Help?</h5>
+            </div>
+            <div class="card-body">
+                <p class="small text-muted">
+                    If you haven't received this file, please contact the Registry immediately.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

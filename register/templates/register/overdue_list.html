@@ -1,0 +1,88 @@
+{% extends 'register/base.html' %}
+
+{% block title %}Overdue Files - File Tracking System{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-8">
+        <h2><i class="bi bi-exclamation-triangle text-danger me-2"></i>Overdue Files</h2>
+    </div>
+    <div class="col-md-4 text-end">
+        <a href="{% url 'file_list' %}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-1"></i>Back to Files
+        </a>
+    </div>
+</div>
+
+<!-- Summary -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body text-center">
+                <h3 class="mb-0 text-danger">{{ total_overdue }}</h3>
+                <small class="text-muted">Total Overdue</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body text-center">
+                <h3 class="mb-0 text-warning">{{ critical_overdue }}</h3>
+                <small class="text-muted">Critical (>14 days)</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Overdue Files Table -->
+<div class="card border-0 shadow-sm">
+    <div class="card-body p-0">
+        {% if overdue_files %}
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Reference</th>
+                        <th>Title</th>
+                        <th>Holder</th>
+                        <th>Department</th>
+                        <th>Due Date</th>
+                        <th>Days Overdue</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for file in overdue_files %}
+                    <tr class="table-danger">
+                        <td>
+                            <a href="{% url 'file_detail' file.uuid %}">
+                                <strong>{{ file.reference }}</strong>
+                            </a>
+                        </td>
+                        <td>{{ file.title|truncatechars:30 }}</td>
+                        <td>{{ file.current_holder.get_full_name|default:file.current_holder.username }}</td>
+                        <td>{{ file.current_department.name }}</td>
+                        <td class="text-danger">{{ file.due_date|date:"M d, Y" }}</td>
+                        <td>
+                            {% with days=file.due_date|timesince %}
+                            <span class="badge bg-danger">{{ days }}</span>
+                            {% endwith %}
+                        </td>
+                        <td>
+                            <a href="{% url 'file_detail' file.uuid %}" class="btn btn-sm btn-outline-primary">View</a>
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-5">
+            <i class="bi bi-check-circle fs-1 text-success mb-3"></i>
+            <h5>No Overdue Files</h5>
+            <p class="text-muted">All files are returned on time!</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

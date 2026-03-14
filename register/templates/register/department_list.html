@@ -1,0 +1,66 @@
+{% extends 'register/base.html' %}
+
+{% block title %}Departments - File Tracking System{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-6">
+        <h2><i class="bi bi-building me-2"></i>Departments</h2>
+    </div>
+    <div class="col-md-6 text-end">
+        <a href="{% url 'department_create' %}" class="btn btn-primary">
+            <i class="bi bi-plus-lg me-1"></i>New Department
+        </a>
+    </div>
+</div>
+
+<div class="card border-0 shadow-sm">
+    <div class="card-body p-0">
+        {% if departments %}
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Name</th>
+                        <th>Code</th>
+                        <th>Description</th>
+                        <th>Status</th>
+                        <th>Created</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for dept in departments %}
+                    <tr>
+                        <td><strong>{{ dept.name }}</strong></td>
+                        <td><span class="badge bg-secondary">{{ dept.code }}</span></td>
+                        <td>{{ dept.description|truncatechars:30 }}</td>
+                        <td>
+                            {% if dept.is_active %}
+                            <span class="badge bg-success">Active</span>
+                            {% else %}
+                            <span class="badge bg-secondary">Inactive</span>
+                            {% endif %}
+                        </td>
+                        <td><small>{{ dept.created_at|date:"M d, Y" }}</small></td>
+                        <td>
+                            <a href="{% url 'department_edit' dept.pk %}" class="btn btn-sm btn-outline-primary" title="Edit">
+                                <i class="bi bi-pencil"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-5">
+            <i class="bi bi-building fs-1 text-muted mb-3"></i>
+            <h5>No departments</h5>
+            <p class="text-muted">Create your first department to get started</p>
+            <a href="{% url 'department_create' %}" class="btn btn-primary">Create Department</a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,46 @@
+{% extends 'register/base.html' %}
+
+{% block title %}Archive File - File Tracking System{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header">
+                    <h4>Archive File</h4>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-warning">
+                        <h5>Warning: You are about to archive this file!</h5>
+                        <p>Archived files will be kept in the system but won't be available for checkout.</p>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <strong>File Reference:</strong> {{ file.reference }}
+                    </div>
+                    <div class="mb-3">
+                        <strong>Title:</strong> {{ file.title }}
+                    </div>
+                    <div class="mb-3">
+                        <strong>Current Status:</strong> 
+                        <span class="badge bg-{{ file.status|default:'secondary' }}">{{ file.get_status_display }}</span>
+                    </div>
+                    
+                    <form method="post">
+                        {% csrf_token %}
+                        <div class="mb-3">
+                            <label class="form-label">Reason for archiving (optional)</label>
+                            <textarea name="reason" class="form-control" rows="3" placeholder="Enter reason for archiving..."></textarea>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-warning">Archive File</button>
+                            <a href="{% url 'file_detail' file.uuid %}" class="btn btn-secondary">Cancel</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

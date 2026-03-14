@@ -1,0 +1,74 @@
+{% extends 'register/base.html' %}
+
+{% block title %}Users - File Tracking System{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-8">
+        <h2><i class="bi bi-people me-2"></i>Users</h2>
+    </div>
+</div>
+
+<div class="card border-0 shadow-sm">
+    <div class="card-body p-0">
+        {% if profiles %}
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Username</th>
+                        <th>Full Name</th>
+                        <th>Employee ID</th>
+                        <th>Role</th>
+                        <th>Department</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for profile in profiles %}
+                    <tr>
+                        <td>
+                            <strong>{{ profile.user.username }}</strong>
+                            {% if profile.user.is_superuser %}
+                            <span class="badge bg-danger ms-1">Admin</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ profile.user.get_full_name|default:"-" }}</td>
+                        <td>{{ profile.employee_id|default:"-" }}</td>
+                        <td>
+                            <span class="badge 
+                                {% if profile.role == 'admin' %}bg-danger
+                                {% elif profile.role == 'registry' %}bg-warning text-dark
+                                {% else %}bg-info{% endif %}">
+                                {{ profile.get_role_display }}
+                            </span>
+                        </td>
+                        <td>{{ profile.department.name|default:"-" }}</td>
+                        <td>
+                            {% if profile.is_active %}
+                            <span class="badge bg-success">Active</span>
+                            {% else %}
+                            <span class="badge bg-secondary">Inactive</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <a href="{% url 'user_edit' profile.pk %}" class="btn btn-sm btn-outline-primary" title="Edit">
+                                <i class="bi bi-pencil"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-5">
+            <i class="bi bi-people fs-1 text-muted mb-3"></i>
+            <h5>No users</h5>
+            <p class="text-muted">No user profiles found</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

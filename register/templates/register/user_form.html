@@ -1,0 +1,58 @@
+{% extends 'register/base.html' %}
+
+{% block title %}Edit User - File Tracking System{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-8">
+        <h2><i class="bi bi-person me-2"></i>Edit User Profile</h2>
+    </div>
+    <div class="col-md-4 text-end">
+        <a href="{% url 'user_list' %}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-1"></i>Back
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    {% load crispy_forms_tags %}
+                    {{ form|crispy }}
+                    
+                    <div class="d-grid gap-2 mt-4">
+                        <button type="submit" class="btn btn-primary btn-lg">
+                            <i class="bi bi-check-circle me-2"></i>Update Profile
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-4">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white">
+                <h5 class="mb-0"><i class="bi bi-info-circle me-2"></i>Role Descriptions</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <span class="badge bg-danger">Administrator</span>
+                    <p class="small text-muted mt-1">Full system access, can manage all settings</p>
+                </div>
+                <div class="mb-3">
+                    <span class="badge bg-warning text-dark">Registry Officer</span>
+                    <p class="small text-muted mt-1">Manages files, processes requests</p>
+                </div>
+                <div class="mb-3">
+                    <span class="badge bg-info">Department User</span>
+                    <p class="small text-muted mt-1">Can request and checkout files</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

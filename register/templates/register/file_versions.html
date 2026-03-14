@@ -1,0 +1,54 @@
+{% extends 'register/base.html' %}
+
+{% block title %}Version History - File Tracking System{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h4>Version History - {{ file.reference }}</h4>
+                    <a href="{% url 'file_detail' file.uuid %}" class="btn btn-sm btn-secondary">Back to File</a>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Version</th>
+                                    <th>Title</th>
+                                    <th>Change Type</th>
+                                    <th>Changed By</th>
+                                    <th>Date</th>
+                                    <th>Notes</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for version in versions %}
+                                <tr>
+                                    <td><span class="badge bg-primary">v{{ version.version_number }}</span></td>
+                                    <td>{{ version.title }}</td>
+                                    <td>
+                                        <span class="badge bg-{% if version.change_type == 'create' %}success{% elif version.change_type == 'archive' %}warning{% else %}info{% endif %}">
+                                            {{ version.get_change_type_display }}
+                                        </span>
+                                    </td>
+                                    <td>{{ version.created_by.username|default:"System" }}</td>
+                                    <td>{{ version.created_at|date:"M d, Y H:i" }}</td>
+                                    <td><small>{{ version.notes|default:"-" }}</small></td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="6" class="text-center text-muted">No version history available</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,75 @@
+{% extends 'register/base.html' %}
+
+{% block title %}Check Out File - File Tracking System{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-8">
+        <h2><i class="bi bi-box-arrow-right me-2"></i>Check Out File</h2>
+    </div>
+    <div class="col-md-4 text-end">
+        <a href="{% url 'file_detail' file.uuid %}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-1"></i>Cancel
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-warning bg-opacity-10">
+                <h5 class="mb-0 text-warning">
+                    <i class="bi bi-exclamation-triangle me-2"></i>Check Out: {{ file.reference }}
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-info mb-4">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <small class="text-muted d-block">File Title</small>
+                            <strong>{{ file.title }}</strong>
+                        </div>
+                        <div class="col-md-6">
+                            <small class="text-muted d-block">Department</small>
+                            <strong>{{ file.department.name }}</strong>
+                        </div>
+                    </div>
+                </div>
+                
+                <form method="post">
+                    {% csrf_token %}
+                    {% load crispy_forms_tags %}
+                    {{ form|crispy }}
+                    
+                    <div class="alert alert-warning mt-3">
+                        <i class="bi bi-info-circle me-2"></i>
+                        <strong>Note:</strong> The file will be due in 7 days. Please ensure timely return.
+                    </div>
+                    
+                    <div class="d-grid gap-2 mt-4">
+                        <button type="submit" class="btn btn-warning btn-lg">
+                            <i class="bi bi-check-circle me-2"></i>Confirm Check Out
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-4">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white">
+                <h5 class="mb-0"><i class="bi bi-clock me-2"></i>Due Date</h5>
+            </div>
+            <div class="card-body text-center">
+                <h3 class="text-warning">
+                    {% with due_date=timezone.now|date:"+7 days"|date:"F d, Y" %}
+                    {{ due_date }}
+                    {% endwith %}
+                </h3>
+                <p class="text-muted">7 days from now</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

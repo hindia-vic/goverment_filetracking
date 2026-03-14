@@ -1,0 +1,94 @@
+{% extends 'register/base.html' %}
+
+{% block title %}Confirm Handover - File Tracking System{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-8">
+        <h2><i class="bi bi-hand-thumbs-up me-2"></i>Confirm Handover</h2>
+    </div>
+    <div class="col-md-4 text-end">
+        <a href="{% url 'request_list' %}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-1"></i>Back
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-success bg-opacity-10">
+                <h5 class="mb-0 text-success">
+                    <i class="bi bi-box-arrow-right me-2"></i>Handover File to User
+                </h5>
+            </div>
+            <div class="card-body">
+                <!-- Request Details -->
+                <div class="alert alert-info mb-4">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <small class="text-muted d-block">File</small>
+                            <strong>{{ file_request.file.reference }}</strong>
+                        </div>
+                        <div class="col-md-6">
+                            <small class="text-muted d-block">Pickup Date</small>
+                            <strong>{{ file_request.pickup_date|date:"F d, Y"|default:"Not set" }}</strong>
+                        </div>
+                    </div>
+                    <hr>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <small class="text-muted d-block">Requested By</small>
+                            <strong>{{ file_request.requesting_user.get_full_name }}</strong>
+                        </div>
+                        <div class="col-md-6">
+                            <small class="text-muted d-block">Employee ID</small>
+                            <strong>{{ file_request.requesting_user.profile.employee_id|default:"Not set" }}</strong>
+                        </div>
+                    </div>
+                </div>
+                
+                <form method="post">
+                    {% csrf_token %}
+                    {% load crispy_forms_tags %}
+                    {{ form|crispy }}
+                    
+                    <div class="alert alert-warning mt-3">
+                        <i class="bi bi-info-circle me-2"></i>
+                        <strong>Verification:</strong> Ask for the user's Employee ID to confirm their identity before handing over the file.
+                    </div>
+                    
+                    <div class="d-grid gap-2 mt-4">
+                        <button type="submit" class="btn btn-success btn-lg">
+                            <i class="bi bi-check-all me-2"></i>Confirm Handover
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-4">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white">
+                <h5 class="mb-0"><i class="bi bi-person-badge me-2"></i>User Information</h5>
+            </div>
+            <div class="card-body">
+                <dl class="row">
+                    <dt class="col-sm-5">Name</dt>
+                    <dd class="col-sm-7">{{ file_request.requesting_user.get_full_name }}</dd>
+                    
+                    <dt class="col-sm-5">Employee ID</dt>
+                    <dd class="col-sm-7">{{ file_request.requesting_user.profile.employee_id|default:"-" }}</dd>
+                    
+                    <dt class="col-sm-5">Department</dt>
+                    <dd class="col-sm-7">{{ file_request.requesting_department.name|default:"-" }}</dd>
+                    
+                    <dt class="col-sm-5">Phone</dt>
+                    <dd class="col-sm-7">{{ file_request.requesting_user.profile.phone|default:"-" }}</dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,104 @@
+{% extends 'register/base.html' %}
+
+{% block title %}Process Request - File Tracking System{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-8">
+        <h2><i class="bi bi-clipboard-check me-2"></i>Process Request</h2>
+    </div>
+    <div class="col-md-4 text-end">
+        <a href="{% url 'request_list' %}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-1"></i>Back to Requests
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-8">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white">
+                <h5 class="mb-0">Request #{{ file_request.id }}</h5>
+            </div>
+            <div class="card-body">
+                <!-- Request Details -->
+                <div class="alert alert-info mb-4">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <small class="text-muted d-block">File</small>
+                            <strong>{{ file_request.file.reference }}</strong>
+                            <br><small>{{ file_request.file.title }}</small>
+                        </div>
+                        <div class="col-md-6">
+                            <small class="text-muted d-block">Requested By</small>
+                            <strong>{{ file_request.requesting_user.get_full_name }}</strong>
+                            <br><small>{{ file_request.requesting_department.name|default:"No Department" }}</small>
+                        </div>
+                    </div>
+                    <hr>
+                    <small class="text-muted d-block">Purpose</small>
+                    <p class="mb-0">{{ file_request.purpose|default:"No purpose provided" }}</p>
+                </div>
+                
+                <form method="post">
+                    {% csrf_token %}
+                    {% load crispy_forms_tags %}
+                    {{ form|crispy }}
+                    
+                    <div class="d-grid gap-2 mt-4">
+                        <button type="submit" class="btn btn-lg 
+                            {% if form.action.value == 'approve' %}btn-success{% else %}btn-danger{% endif %}">
+                            {% if form.action.value == 'approve' %}
+                            <i class="bi bi-check-circle me-2"></i>Approve Request
+                            {% else %}
+                            <i class="bi bi-x-circle me-2"></i>Reject Request
+                            {% endif %}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-4">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white">
+                <h5 class="mb-0"><i class="bi bi-clock me-2"></i>Request Timeline</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-flex mb-3">
+                    <div class="bg-success bg-opacity-10 p-2 rounded me-3">
+                        <i class="bi bi-check text-success"></i>
+                    </div>
+                    <div>
+                        <strong>Requested</strong>
+                        <p class="small text-muted mb-0">{{ file_request.created_at|date:"F d, Y H:i" }}</p>
+                    </div>
+                </div>
+                
+                <div class="d-flex mb-3">
+                    <div class="bg-warning bg-opacity-10 p-2 rounded me-3">
+                        <i class="bi bi-arrow-repeat text-warning"></i>
+                    </div>
+                    <div>
+                        <strong>Pending Review</strong>
+                        <p class="small text-muted mb-0">Awaiting your decision</p>
+                    </div>
+                </div>
+                
+                <hr>
+                
+                <div class="d-flex">
+                    <div class="bg-primary bg-opacity-10 p-2 rounded me-3">
+                        <i class="bi bi-person text-primary"></i>
+                    </div>
+                    <div>
+                        <strong>Employee ID</strong>
+                        <p class="small text-muted mb-0">{{ file_request.requesting_user.profile.employee_id|default:"Not set" }}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

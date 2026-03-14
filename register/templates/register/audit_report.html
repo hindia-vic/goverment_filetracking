@@ -1,0 +1,126 @@
+{% extends 'register/base.html' %}
+
+{% block title %}Audit Report - File Tracking System{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-8">
+        <h2><i class="bi bi-journal-text me-2"></i>Audit Report</h2>
+    </div>
+    <div class="col-md-4 text-end">
+        <a href="?export=pdf&{% for key, value in request.GET.items %}{{ key }}={{ value }}&{% endfor %}" class="btn btn-primary">
+            <i class="bi bi-file-pdf me-1"></i>Export PDF
+        </a>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="card border-0 shadow-sm mb-4">
+    <div class="card-body">
+        <form method="get" class="row g-3">
+            <div class="col-md-3">
+                <label class="form-label">Department</label>
+                {{ form.department }}
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Status</label>
+                {{ form.status }}
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">From Date</label>
+                {{ form.date_from }}
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">To Date</label>
+                {{ form.date_to }}
+            </div>
+            <div class="col-md-3 d-flex align-items-end">
+                <div class="d-grid gap-2 w-100">
+                    <button type="submit" class="btn btn-primary">Filter</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Summary -->
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body text-center">
+                <h3 class="mb-0">{{ total_count }}</h3>
+                <small class="text-muted">Total Movement Records</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Audit Table -->
+<div class="card border-0 shadow-sm">
+    <div class="card-body p-0">
+        {% if movements %}
+        <div class="table-responsive">
+            <table class="table table-sm mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Date & Time</th>
+                        <th>Reference</th>
+                        <th>Action</th>
+                        <th>From User</th>
+                        <th>To User</th>
+                        <th>From Dept</th>
+                        <th>To Dept</th>
+                        <th>Signed</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for move in movements %}
+                    <tr>
+                        <td><small>{{ move.created_at|date:"M d, Y H:i" }}</small></td>
+                        <td>
+                            <a href="{% url 'file_detail' move.file.uuid %}">
+                                <strong>{{ move.file.reference }}</strong>
+                            </a>
+                        </td>
+                        <td>
+                            <span class="badge 
+                                {% if move.action == 'checkout' %}bg-warning text-dark
+                                {% elif move.action == 'checkin' %}bg-success
+                                {% elif move.action == 'transfer' %}bg-info
+                                {% else %}bg-secondary{% endif %}">
+                                {{ move.get_action_display }}
+                            </span>
+                        </td>
+                        <td><small>{{ move.from_user.get_full_name|default:move.from_user.username|default:"-" }}</small></td>
+                        <td><small>{{ move.to_user.get_full_name|default:move.to_user.username|default:"-" }}</small></td>
+                        <td><small>{{ move.from_department.name|default:"-" }}</small></td>
+                        <td><small>{{ move.to_department.name|default:"-" }}</small></td>
+                        <td>
+                            {% if move.signature_data %}
+                            <i class="bi bi-check-circle text-success"></i>
+                            {% else %}
+                            <i class="bi bi-x-circle text-muted"></i>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        
+        {% if total_count > 100 %}
+        <div class="card-footer bg-white text-center">
+            <small class="text-muted">Showing first 100 records. Export to PDF for complete report.</small>
+        </div>
+        {% endif %}
+        
+        {% else %}
+        <div class="text-center py-5">
+            <i class="bi bi-inbox fs-1 text-muted mb-3"></i>
+            <h5>No records found</h5>
+            <p class="text-muted">Try adjusting your filters</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

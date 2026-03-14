@@ -1,0 +1,188 @@
+{% extends 'register/base.html' %}
+
+{% block title %}Files - File Tracking System{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-6">
+        <h2><i class="bi bi-folder me-2"></i>Files</h2>
+    </div>
+    <div class="col-md-6 text-end">
+        {% if user.profile.role in 'registry,admin' or user.is_superuser %}
+        <a href="{% url 'file_upload' %}" class="btn btn-primary">
+            <i class="bi bi-plus-lg me-1"></i>New File
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Search and Filters -->
+<div class="card border-0 shadow-sm mb-4">
+    <div class="card-body">
+        <form method="get" class="row g-3">
+            <div class="col-md-4">
+                <div class="input-group">
+                    <span class="input-group-text"><i class="bi bi-search"></i></span>
+                    <input type="text" name="search" class="form-control" placeholder="Search files..." value="{{ request.GET.search|default:'' }}">
+                </div>
+            </div>
+            <div class="col-md-3">
+                <select name="status" class="form-select">
+                    <option value="">All Status</option>
+                    {% for value, label in status_choices %}
+                    <option value="{{ value }}" {% if request.GET.status == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-outline-primary w-100">Filter</button>
+            </div>
+            <div class="col-md-3 text-end">
+                <a href="{% url 'file_list' %}" class="btn btn-outline-secondary">Clear</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Statistics Summary -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body text-center">
+                <h3 class="mb-0 text-primary">{{ checked_out_count }}</h3>
+                <small class="text-muted">Checked Out</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body text-center">
+                <h3 class="mb-0 text-danger">{{ overdue_count }}</h3>
+                <small class="text-muted">Overdue</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body text-center">
+                <h3 class="mb-0">{{ files.paginator.count|default:files|length }}</h3>
+                <small class="text-muted">Total Files Showing</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Files Table -->
+<div class="card border-0 shadow-sm">
+    <div class="card-body p-0">
+        {% if files %}
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Reference</th>
+                        <th>Title</th>
+                        <th>Department</th>
+                        <th>Status</th>
+                        <th>Priority</th>
+                        <th>Holder</th>
+                        <th>Due Date</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for file in files %}
+                    <tr class="{% if file.is_overdue %}table-danger{% endif %}">
+                        <td>
+                            <a href="{% url 'file_detail' file.uuid %}" class="text-decoration-none">
+                                <strong>{{ file.reference }}</strong>
+                            </a>
+                        </td>
+                        <td>{{ file.title|truncatechars:30 }}</td>
+                        <td>{{ file.department.name }}</td>
+                        <td>
+                            <span class="badge 
+                                {% if file.status == 'in_registry' %}bg-success
+                                {% elif file.status == 'checked_out' %}bg-warning text-dark
+                                {% elif file.status == 'overdue' %}bg-danger
+                                {% elif file.status == 'archived' %}bg-secondary{% endif %}">
+                                {{ file.get_status_display }}
+                            </span>
+                        </td>
+                        <td>
+                            <span class="badge 
+                                {% if file.priority == 'urgent' %}bg-danger
+                                {% elif file.priority == 'high' %}bg-warning text-dark
+                                {% elif file.priority == 'normal' %}bg-info
+                                {% else %}bg-secondary{% endif %}">
+                                {{ file.get_priority_display }}
+                            </span>
+                        </td>
+                        <td>
+                            {% if file.current_holder %}
+                                <small>{{ file.current_holder.get_full_name|default:file.current_holder.username }}</small>
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if file.due_date %}
+                                <small class="{% if file.is_overdue %}text-danger{% endif %}">
+                                    {{ file.due_date|date:"M d, Y" }}
+                                </small>
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <a href="{% url 'file_detail' file.uuid %}" class="btn btn-sm btn-outline-primary" title="View">
+                                <i class="bi bi-eye"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- Pagination -->
+        {% if files.paginator %}
+        <div class="card-footer bg-white">
+            <nav aria-label="Page navigation">
+                <ul class="pagination justify-content-center mb-0">
+                    {% if files.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page=1">First</a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ files.previous_page_number }}">Previous</a>
+                    </li>
+                    {% endif %}
+                    
+                    <li class="page-item disabled">
+                        <span class="page-link">Page {{ files.number }} of {{ files.paginator.num_pages }}</span>
+                    </li>
+                    
+                    {% if files.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ files.next_page_number }}">Next</a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ files.paginator.num_pages }}">Last</a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </nav>
+        </div>
+        {% endif %}
+        
+        {% else %}
+        <div class="text-center py-5">
+            <i class="bi bi-folder-x fs-1 text-muted mb-3"></i>
+            <h5>No files found</h5>
+            <p class="text-muted">Try adjusting your search or filters</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
