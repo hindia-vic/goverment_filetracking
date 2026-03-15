@@ -1,0 +1,29 @@
+{% extends 'register/base.html' %}
+
+{% block title %}Delete Tag - File Tracking System{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card mt-4">
+                <div class="card-header bg-danger text-white">
+                    <h4 class="mb-0">Delete Tag</h4>
+                </div>
+                <div class="card-body">
+                    <p>Are you sure you want to delete the tag <strong>{{ object.name }}</strong>?</p>
+                    <p class="text-muted">This will remove the tag from all files. This action cannot be undone.</p>
+                    
+                    <form method="post">
+                        {% csrf_token %}
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-danger">Delete Tag</button>
+                            <a href="{% url 'tag_list' %}" class="btn btn-outline-secondary">Cancel</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

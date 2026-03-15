@@ -1,6 +1,6 @@
 # registry/admin.py
 from django.contrib import admin
-from .models import Department, File, FileMovement, AuditLog, UserProfile, Notification, FileRequest, ActivityLog, FileVersion
+from .models import Department, File, FileMovement, AuditLog, UserProfile, Notification, FileRequest, ActivityLog, FileVersion, FileTag
 
 
 @admin.register(Department)
@@ -43,8 +43,8 @@ class FileMovementInline(admin.TabularInline):
 @admin.register(File)
 class FileAdmin(admin.ModelAdmin):
     list_display = ['reference', 'title', 'status', 'current_holder', 'due_date', 'is_overdue_display']
-    list_filter = ['status', 'department', 'priority', 'year']
-    search_fields = ['reference', 'title', 'uuid']
+    list_filter = ['status', 'department', 'priority', 'year', 'tags']
+    search_fields = ['reference', 'title', 'uuid', 'tags__name']
     readonly_fields = ['reference', 'uuid', 'qr_code_preview', 'created_at']
     inlines = [FileMovementInline]
     date_hierarchy = 'created_at'
@@ -101,6 +101,13 @@ class FileVersionAdmin(admin.ModelAdmin):
     search_fields = ['file__reference', 'file__title']
     date_hierarchy = 'created_at'
     readonly_fields = ['file', 'version_number', 'title', 'description', 'department', 'created_by', 'change_type', 'notes', 'created_at']
+
+
+@admin.register(FileTag)
+class FileTagAdmin(admin.ModelAdmin):
+    list_display = ['name', 'color', 'created_by', 'created_at']
+    search_fields = ['name', 'description']
+    list_filter = ['created_at']
 
 
 # Register your models here.

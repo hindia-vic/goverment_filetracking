@@ -34,6 +34,14 @@
                     {% endfor %}
                 </select>
             </div>
+            <div class="col-md-3">
+                <select name="tag" class="form-select">
+                    <option value="">All Tags</option>
+                    {% for tag in available_tags %}
+                    <option value="{{ tag.id }}" {% if request.GET.tag == tag.id|stringformat:"s" %}selected{% endif %}>{{ tag.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
             <div class="col-md-2">
                 <button type="submit" class="btn btn-outline-primary w-100">Filter</button>
             </div>
@@ -85,6 +93,7 @@
                         <th>Department</th>
                         <th>Status</th>
                         <th>Priority</th>
+                        <th>Tags</th>
                         <th>Holder</th>
                         <th>Due Date</th>
                         <th>Actions</th>
@@ -117,6 +126,18 @@
                                 {% else %}bg-secondary{% endif %}">
                                 {{ file.get_priority_display }}
                             </span>
+                        </td>
+                        <td>
+                            {% if file.tags.all %}
+                                {% for tag in file.tags.all|slice:":3" %}
+                                    <span class="badge" style="background-color: {{ tag.color }}; font-size: 0.7rem;">{{ tag.name }}</span>
+                                {% endfor %}
+                                {% if file.tags.count > 3 %}
+                                    <span class="badge bg-secondary" style="font-size: 0.7rem;">+{{ file.tags.count|add:"-3" }}</span>
+                                {% endif %}
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
                         </td>
                         <td>
                             {% if file.current_holder %}

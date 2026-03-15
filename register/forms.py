@@ -3,7 +3,7 @@ from django.contrib.auth.models import User
 from django.contrib.auth.forms import UserCreationForm
 from crispy_forms.helper import FormHelper
 from crispy_forms.layout import Layout, Submit, Row, Column, Field, HTML
-from .models import File, FileMovement, Department, UserProfile, FileRequest
+from .models import File, FileMovement, Department, UserProfile, FileRequest, FileTag
 
 
 class UserRegistrationForm(UserCreationForm):
@@ -367,3 +367,37 @@ class AuditFilterForm(forms.Form):
             ),
             Submit('submit', 'Filter Records', css_class='btn btn-info')
         )
+
+
+class FileTagForm(forms.ModelForm):
+    """Form for creating/editing file tags"""
+    class Meta:
+        model = FileTag
+        fields = ['name', 'color', 'description']
+        widgets = {
+            'color': forms.TextInput(attrs={'type': 'color', 'class': 'form-control-color'}),
+            'description': forms.Textarea(attrs={'rows': 2}),
+        }
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.helper = FormHelper()
+        self.helper.layout = Layout(
+            Row(
+                Column('name', css_class='col-md-6'),
+                Column('color', css_class='col-md-6'),
+            ),
+            'description',
+            Submit('submit', 'Save Tag', css_class='btn btn-primary')
+        )
+    
+    def clean_name(self):
+        name = self.cleaned_data.get('name')
+        if name:
+            # Check if tag name already exists
+            existing = FileTag.objects.filter(name__iexact=name)
+            if self.instance and self.instance.pk:
+                existing = existing.exclude(pk=self.instance.pk)
+            if existing.exists():
+                raise forms.ValidationError('A tag with this name already exists.')
+        return name

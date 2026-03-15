@@ -78,6 +78,14 @@ urlpatterns = [
     path('files/<uuid:uuid>/restore/', views.FileRestoreView.as_view(), name='file_restore'),
     path('files/<uuid:uuid>/versions/', views.FileVersionHistoryView.as_view(), name='file_versions'),
     
+    # Tags management
+    path('tags/', views.TagListView.as_view(), name='tag_list'),
+    path('tags/create/', views.TagCreateView.as_view(), name='tag_create'),
+    path('tags/<int:pk>/edit/', views.TagUpdateView.as_view(), name='tag_edit'),
+    path('tags/<int:pk>/delete/', views.TagDeleteView.as_view(), name='tag_delete'),
+    path('files/<uuid:uuid>/add-tag/', views.add_tag_to_file, name='add_tag_to_file'),
+    path('files/<uuid:uuid>/remove-tag/', views.remove_tag_from_file, name='remove_tag_from_file'),
+    
     # User registration
     path('register/', views.RegisterView.as_view(), name='register'),
     

@@ -2,7 +2,7 @@ from rest_framework import serializers
 from django.contrib.auth.models import User
 from .models import (
     UserProfile, Department, File, FileMovement, 
-    FileRequest, Notification, ActivityLog, FileVersion
+    FileRequest, Notification, ActivityLog, FileVersion, FileTag
 )
 
 
@@ -48,6 +48,16 @@ class UserProfileSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'created_at', 'updated_at']
 
 
+class FileTagSerializer(serializers.ModelSerializer):
+    """Serializer for FileTag model"""
+    created_by_name = serializers.CharField(source='created_by.get_full_name', read_only=True)
+    
+    class Meta:
+        model = FileTag
+        fields = ['id', 'name', 'color', 'description', 'created_by', 'created_by_name', 'created_at']
+        read_only_fields = ['id', 'created_at']
+
+
 class FileVersionSerializer(serializers.ModelSerializer):
     """Serializer for FileVersion model"""
     uploaded_by_name = serializers.CharField(source='uploaded_by.get_full_name', read_only=True)
@@ -67,6 +77,7 @@ class FileListSerializer(serializers.ModelSerializer):
     current_holder_name = serializers.CharField(source='current_holder.get_full_name', read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     priority_display = serializers.CharField(source='get_priority_display', read_only=True)
+    tags = FileTagSerializer(many=True, read_only=True)
     
     class Meta:
         model = File
@@ -74,7 +85,7 @@ class FileListSerializer(serializers.ModelSerializer):
             'id', 'reference', 'title', 'department', 'department_name',
             'status', 'status_display', 'priority', 'priority_display',
             'current_holder', 'current_holder_name', 'created_at', 
-            'checked_out_at', 'due_date', 'is_overdue'
+            'checked_out_at', 'due_date', 'is_overdue', 'tags'
         ]
 
 
@@ -89,6 +100,7 @@ class FileDetailSerializer(serializers.ModelSerializer):
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     priority_display = serializers.CharField(source='get_priority_display', read_only=True)
     versions = FileVersionSerializer(many=True, read_only=True)
+    tags = FileTagSerializer(many=True, read_only=True)
     
     class Meta:
         model = File
@@ -98,7 +110,7 @@ class FileDetailSerializer(serializers.ModelSerializer):
             'status', 'status_display', 'current_holder', 'created_by',
             'created_at', 'updated_at', 'checked_out_at', 'due_date',
             'qr_code', 'archived_at', 'archive_reason', 'versions',
-            'is_overdue'
+            'is_overdue', 'tags'
         ]
         read_only_fields = ['id', 'uuid', 'reference', 'created_at', 'updated_at']
 

@@ -574,4 +574,26 @@ class ActivityLog(models.Model):
         return f"{self.user.username} - {self.get_action_display()} - {self.timestamp.strftime('%Y-%m-%d %H:%M')}"
 
 
+class FileTag(models.Model):
+    """Tags for organizing files"""
+    name = models.CharField(max_length=50, unique=True)
+    color = models.CharField(max_length=7, default='#007bff')  # Hex color code
+    description = models.TextField(blank=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='created_tags')
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['name']
+    
+    def __str__(self):
+        return self.name
+
+
+# Add tags field to File model
+File.add_to_class('tags', models.ManyToManyField(
+    FileTag, 
+    blank=True, 
+    related_name='files'
+))
+
 # Create your models here.

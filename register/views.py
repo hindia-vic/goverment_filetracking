@@ -21,12 +21,13 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 from reportlab.pdfgen import canvas
 
-from .models import File, FileMovement, Department, UserProfile, Notification, FileRequest, ActivityLog, FileVersion
+from .models import File, FileMovement, Department, UserProfile, Notification, FileRequest, ActivityLog, FileVersion, FileTag
 from django.contrib.auth.models import User
 from .forms import (
     FileUploadForm, CheckoutForm, CheckinForm, AuditFilterForm,
     UserRegistrationForm, UserProfileForm, DepartmentForm,
-    FileRequestForm, FileRequestApprovalForm, FileHandoverForm, UserConfirmationForm
+    FileRequestForm, FileRequestApprovalForm, FileHandoverForm, UserConfirmationForm,
+    FileTagForm
 )
 
 
@@ -370,7 +371,7 @@ class FileListView(LoginRequiredMixin, ListView):
     paginate_by = 20
     
     def get_queryset(self):
-        queryset = super().get_queryset().select_related('department', 'current_holder', 'current_department')
+        queryset = super().get_queryset().select_related('department', 'current_holder', 'current_department').prefetch_related('tags')
         
         # Search functionality
         search = self.request.GET.get('search')
@@ -386,12 +387,18 @@ class FileListView(LoginRequiredMixin, ListView):
         if status:
             queryset = queryset.filter(status=status)
         
+        # Filter by tag
+        tag = self.request.GET.get('tag')
+        if tag:
+            queryset = queryset.filter(tags__id=tag)
+        
         return queryset
     
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['status_choices'] = File.STATUS_CHOICES
         context['overdue_count'] = File.objects.filter(status='overdue').count()
+        context['available_tags'] = FileTag.objects.all()
         context['checked_out_count'] = File.objects.filter(status='checked_out').count()
         return context
 
@@ -414,6 +421,10 @@ class FileDetailView(LoginRequiredMixin, DetailView):
                 status__in=['pending', 'approved', 'ready_for_pickup', 'handed_over']
             ).first()
             context['active_request'] = active_request
+        
+        # Get available tags (not already assigned to this file)
+        file_tags = self.object.tags.all()
+        context['available_tags'] = FileTag.objects.exclude(pk__in=file_tags)
         
         return context
 
@@ -920,6 +931,80 @@ class FileVersionHistoryView(LoginRequiredMixin, View):
             'file': file,
             'versions': versions
         })
+
+
+class TagListView(LoginRequiredMixin, ListView):
+    """List all tags (admin only)"""
+    model = FileTag
+    template_name = 'register/tag_list.html'
+    context_object_name = 'tags'
+    
+    def get_queryset(self):
+        return FileTag.objects.annotate(file_count=Count('files'))
+
+
+class TagCreateView(LoginRequiredMixin, CreateView):
+    """Create new tag (admin only)"""
+    model = FileTag
+    form_class = FileTagForm
+    template_name = 'register/tag_form.html'
+    success_url = reverse_lazy('tag_list')
+    
+    def form_valid(self, form):
+        form.instance.created_by = self.request.user
+        messages.success(self.request, 'Tag created successfully!')
+        return super().form_valid(form)
+
+
+class TagUpdateView(LoginRequiredMixin, UpdateView):
+    """Update tag (admin only)"""
+    model = FileTag
+    form_class = FileTagForm
+    template_name = 'register/tag_form.html'
+    success_url = reverse_lazy('tag_list')
+    
+    def form_valid(self, form):
+        messages.success(self.request, 'Tag updated successfully!')
+        return super().form_valid(form)
+
+
+class TagDeleteView(LoginRequiredMixin, DeleteView):
+    """Delete tag (admin only)"""
+    model = FileTag
+    template_name = 'register/tag_confirm_delete.html'
+    success_url = reverse_lazy('tag_list')
+    
+    def form_valid(self, form):
+        messages.success(self.request, 'Tag deleted successfully!')
+        return super().form_valid(form)
+
+
+@login_required
+def add_tag_to_file(request, uuid):
+    """Add a tag to a file"""
+    file = get_object_or_404(File, uuid=uuid)
+    
+    if request.method == 'POST':
+        tag_id = request.POST.get('tag_id')
+        tag = get_object_or_404(FileTag, pk=tag_id)
+        file.tags.add(tag)
+        messages.success(request, f'Tag "{tag.name}" added to file.')
+    
+    return redirect('file_detail', uuid=uuid)
+
+
+@login_required
+def remove_tag_from_file(request, uuid):
+    """Remove a tag from a file"""
+    file = get_object_or_404(File, uuid=uuid)
+    
+    if request.method == 'POST':
+        tag_id = request.POST.get('tag_id')
+        tag = get_object_or_404(FileTag, pk=tag_id)
+        file.tags.remove(tag)
+        messages.success(request, f'Tag "{tag.name}" removed from file.')
+    
+    return redirect('file_detail', uuid=uuid)
 
 
 # Create your views here.
