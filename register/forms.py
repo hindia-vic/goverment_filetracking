@@ -46,6 +46,22 @@ class UserRegistrationForm(UserCreationForm):
             Submit('submit', 'Register', css_class='btn btn-primary w-100 mt-3')
         )
     
+    def clean_email(self):
+        email = self.cleaned_data.get('email')
+        if email:
+            # Check if email is already in use
+            if User.objects.filter(email__iexact=email).exists():
+                raise forms.ValidationError('This email has already been used. Please use a different email address.')
+        return email
+    
+    def clean_employee_id(self):
+        employee_id = self.cleaned_data.get('employee_id')
+        if employee_id:
+            # Check if employee_id is already in use
+            if UserProfile.objects.filter(employee_id__iexact=employee_id).exists():
+                raise forms.ValidationError('This employee ID has already been registered. Please use a different employee ID.')
+        return employee_id
+    
     def save(self, commit=True):
         user = super().save(commit=False)
         user.email = self.cleaned_data['email']
