@@ -1,0 +1,176 @@
+{% extends 'register/base.html' %}
+{% load static %}
+
+{% block title %}Upload Returned Document - File Tracking System{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-10">
+            <div class="card shadow-sm">
+                <div class="card-header bg-success text-white">
+                    <h4 class="mb-0">
+                        <i class="bi bi-upload"></i> Upload Returned Document
+                    </h4>
+                </div>
+                <div class="card-body">
+                    {% if messages %}
+                        {% for message in messages %}
+                            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                                {{ message }}
+                                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+                    
+                    <!-- File Info -->
+                    <div class="card mb-4">
+                        <div class="card-body">
+                            <h5 class="card-title">File Information</h5>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <p class="mb-1">
+                                        <strong>Reference:</strong> 
+                                        <span class="text-primary">{{ file.reference }}</span>
+                                    </p>
+                                    <p class="mb-1">
+                                        <strong>Title:</strong> {{ file.title }}
+                                    </p>
+                                    <p class="mb-1">
+                                        <strong>Department:</strong> {{ file.department.name }}
+                                    </p>
+                                </div>
+                                <div class="col-md-6">
+                                    <p class="mb-1">
+                                        <strong>Status:</strong>
+                                        <span class="badge 
+                                            {% if file.status == 'in_registry' %}bg-success
+                                            {% elif file.status == 'checked_out' %}bg-warning text-dark
+                                            {% elif file.status == 'overdue' %}bg-danger
+                                            {% else %}bg-secondary{% endif %}">
+                                            {{ file.get_status_display }}
+                                        </span>
+                                    </p>
+                                    <p class="mb-1">
+                                        <strong>Current Holder:</strong>
+                                        {% if file.current_holder %}
+                                            {{ file.current_holder.get_full_name|default:file.current_holder.username }}
+                                        {% else %}
+                                            In Registry
+                                        {% endif %}
+                                    </p>
+                                    {% if file.qr_code %}
+                                    <p class="mb-0">
+                                        <strong>QR Code:</strong><br>
+                                        <img src="{{ file.qr_code.url }}" alt="QR Code" style="max-width: 100px; margin-top: 5px;">
+                                    </p>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Previous Version Info -->
+                    {% if previous_version %}
+                    <div class="card mb-4 border-info">
+                        <div class="card-header bg-info text-white">
+                            <h5 class="mb-0">
+                                <i class="bi bi-clock-history"></i> Previous Version Information
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <p class="mb-1">
+                                        <strong>Version:</strong> {{ previous_version.version_number }}
+                                    </p>
+                                    <p class="mb-1">
+                                        <strong>Created:</strong> {{ previous_version.created_at|date:"M d, Y H:i" }}
+                                    </p>
+                                    <p class="mb-1">
+                                        <strong>Created By:</strong> 
+                                        {{ previous_version.created_by.get_full_name|default:previous_version.created_by.username }}
+                                    </p>
+                                </div>
+                                <div class="col-md-6">
+                                    {% if previous_version.file_attachment %}
+                                    <p class="mb-1">
+                                        <strong>Filename:</strong> {{ previous_version.original_filename|default:"N/A" }}
+                                    </p>
+                                    <p class="mb-1">
+                                        <strong>File Size:</strong> 
+                                        {% if previous_version.file_size > 1024 %}
+                                            {{ previous_version.file_size|divisibleby:1024 }} KB
+                                        {% else %}
+                                            {{ previous_version.file_size }} bytes
+                                        {% endif %}
+                                    </p>
+                                    <a href="{{ previous_version.file_attachment.url }}" 
+                                       class="btn btn-sm btn-outline-primary" 
+                                       target="_blank">
+                                        <i class="bi bi-download"></i> Download Previous Version
+                                    </a>
+                                    {% else %}
+                                    <p class="text-muted">No file attachment</p>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                    
+                    <!-- Upload Form -->
+                    <form method="post" enctype="multipart/form-data" class="needs-validation" novalidate>
+                        {% csrf_token %}
+                        
+                        <div class="mb-4">
+                            <label for="file_attachment" class="form-label">
+                                <strong>Upload Document (New Version)</strong>
+                                <span class="text-danger">*</span>
+                            </label>
+                            <input type="file" 
+                                   class="form-control" 
+                                   id="file_attachment" 
+                                   name="file_attachment" 
+                                   accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.jpg,.jpeg,.png"
+                                   required>
+                            <div class="form-text">
+                                Accepted formats: PDF, Word, Excel, PowerPoint, Text, Images
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="changes_summary" class="form-label">
+                                Summary of Changes
+                            </label>
+                            <textarea class="form-control" 
+                                      id="changes_summary" 
+                                      name="changes_summary" 
+                                      rows="3"
+                                      placeholder="Describe what changed in this version..."></textarea>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="notes" class="form-label">Additional Notes</label>
+                            <textarea class="form-control" 
+                                      id="notes" 
+                                      name="notes" 
+                                      rows="2"
+                                      placeholder="Any additional notes about this version..."></textarea>
+                        </div>
+                        
+                        <div class="d-flex justify-content-between">
+                            <a href="{% url 'file_detail' file.uuid %}" class="btn btn-outline-secondary">
+                                <i class="bi bi-arrow-left"></i> Cancel
+                            </a>
+                            <button type="submit" class="btn btn-success">
+                                <i class="bi bi-upload"></i> Upload New Version
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -289,6 +289,10 @@ class File(models.Model):
     # QR Code
     qr_code = models.ImageField(upload_to='qr_codes/', blank=True, null=True)
     
+    # File attachment
+    file_attachment = models.FileField(upload_to='files/%Y/%m/', blank=True, null=True, help_text="Main document file")
+    original_filename = models.CharField(max_length=255, blank=True)
+    
     # Audit
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='created_files')
     
@@ -439,12 +443,12 @@ class File(models.Model):
         self.save()
         return True, "File restored successfully"
     
-    def create_version(self, user, change_type='update', notes=''):
+    def create_version(self, user, change_type='update', notes='', file_attachment=None, changes_summary=''):
         """Create a version snapshot of the file"""
         last_version = self.versions.first()
         version_number = (last_version.version_number + 1) if last_version else 1
         
-        FileVersion.objects.create(
+        version = FileVersion.objects.create(
             file=self,
             version_number=version_number,
             title=self.title,
@@ -452,8 +456,51 @@ class File(models.Model):
             department=self.department,
             created_by=user,
             change_type=change_type,
-            notes=notes
+            notes=notes,
+            changes_summary=changes_summary,
+            file_attachment=file_attachment,
+            original_filename=getattr(file_attachment, 'name', '') if file_attachment else '',
+            file_size=file_attachment.size if file_attachment else 0
         )
+        return version
+    
+    def compare_versions(self, version1_id, version2_id):
+        """Compare two versions and return differences"""
+        from django.db.models import Model
+        
+        try:
+            v1 = self.versions.get(id=version1_id)
+            v2 = self.versions.get(id=version2_id)
+        except FileVersion.DoesNotExist:
+            return None, "Version not found"
+        
+        differences = []
+        
+        # Compare fields
+        if v1.title != v2.title:
+            differences.append(f"Title: '{v1.title}' → '{v2.title}'")
+        if v1.description != v2.description:
+            differences.append(f"Description changed")
+        if v1.file_size != v2.file_size:
+            diff_size = v2.file_size - v1.file_size
+            differences.append(f"File size: {v1.file_size} bytes → {v2.file_size} bytes ({diff_size:+d})")
+        if v1.original_filename != v2.original_filename:
+            differences.append(f"Filename: '{v1.original_filename}' → '{v2.original_filename}'")
+        
+        # Check if file content changed
+        file_changed = (v1.file_attachment != v2.file_attachment)
+        if file_changed:
+            differences.append("Document content: Modified")
+        
+        return differences, None
+    
+    def get_latest_version(self):
+        """Get the most recent version"""
+        return self.versions.first()
+    
+    def get_version_count(self):
+        """Get total number of versions"""
+        return self.versions.count()
     
     def __str__(self):
         return f"{self.reference} - {self.title}"
@@ -475,8 +522,14 @@ class FileVersion(models.Model):
     department = models.ForeignKey(Department, on_delete=models.SET_NULL, null=True)
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
     
+    # File attachment for this version
+    file_attachment = models.FileField(upload_to='file_versions/%Y/%m/', blank=True, null=True)
+    original_filename = models.CharField(max_length=255, blank=True)
+    file_size = models.PositiveIntegerField(default=0)
+    
     change_type = models.CharField(max_length=20, choices=CHANGE_TYPES)
     notes = models.TextField(blank=True)
+    changes_summary = models.TextField(blank=True, help_text="Summary of changes from previous version")
     created_at = models.DateTimeField(auto_now_add=True)
     
     class Meta:

@@ -158,9 +158,10 @@ class FileUploadForm(forms.ModelForm):
     
     class Meta:
         model = File
-        fields = ['department', 'title', 'description', 'priority']
+        fields = ['department', 'title', 'description', 'priority', 'file_attachment']
         widgets = {
             'description': forms.Textarea(attrs={'rows': 3}),
+            'file_attachment': forms.ClearableFileInput(attrs={'accept': '.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.jpg,.jpeg,.png'}),
         }
     
     def __init__(self, *args, **kwargs):
@@ -174,6 +175,7 @@ class FileUploadForm(forms.ModelForm):
             ),
             'title',
             'description',
+            'file_attachment',
             Submit('submit', 'Create File & Generate QR Code', css_class='btn btn-primary')
         )
     
@@ -181,8 +183,17 @@ class FileUploadForm(forms.ModelForm):
         instance = super().save(commit=False)
         if self.user:
             instance.created_by = self.user
+            instance.original_filename = instance.file_attachment.name if instance.file_attachment else ''
         if commit:
             instance.save()
+            # Create initial version if file attached
+            if instance.file_attachment:
+                instance.create_version(
+                    user=self.user,
+                    change_type='create',
+                    notes='Initial version',
+                    file_attachment=instance.file_attachment
+                )
         return instance
 
 

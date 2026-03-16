@@ -1007,4 +1007,106 @@ def remove_tag_from_file(request, uuid):
     return redirect('file_detail', uuid=uuid)
 
 
-# Create your views here.
+@login_required
+def qr_scan_lookup(request):
+    """
+    QR Code Scan Lookup - Find file by UUID from scanned QR code
+    This view handles the QR code scanned/entered to look up a file
+    """
+    template_name = 'register/qr_scan.html'
+    
+    if request.method == 'POST':
+        uuid_input = request.POST.get('uuid', '').strip()
+        
+        if not uuid_input:
+            messages.error(request, 'Please enter or scan a QR code value.')
+            return render(request, template_name)
+        
+        # Try to find file by UUID
+        try:
+            file = File.objects.get(uuid=uuid_input)
+            # Redirect to the file's detail page or version upload
+            return redirect('file_return_upload', uuid=file.uuid)
+        except File.DoesNotExist:
+            messages.error(request, f'No file found with ID: {uuid_input}')
+            return render(request, template_name)
+    
+    return render(request, template_name)
+
+
+@login_required
+def file_return_upload(request, uuid):
+    """
+    File Return Upload - Upload a new version when document is returned
+    After scanning QR code, user uploads the document which creates a new version
+    """
+    file = get_object_or_404(File, uuid=uuid)
+    template_name = 'register/file_return.html'
+    
+    # Get the previous version for comparison
+    previous_version = file.versions.first()
+    
+    if request.method == 'POST':
+        new_file = request.FILES.get('file_attachment')
+        notes = request.POST.get('notes', '')
+        changes_summary = request.POST.get('changes_summary', '')
+        
+        if not new_file:
+            messages.error(request, 'Please upload a document file.')
+            return render(request, template_name, {'file': file, 'previous_version': previous_version})
+        
+        # Create new version
+        version = file.create_version(
+            user=request.user,
+            change_type='update',
+            notes=notes,
+            changes_summary=changes_summary,
+            file_attachment=new_file
+        )
+        
+        # Update the main file attachment
+        file.file_attachment = new_file
+        file.original_filename = new_file.name
+        file.save()
+        
+        # Compare with previous version
+        if previous_version:
+            differences, _ = file.compare_versions(previous_version.id, version.id)
+            if differences:
+                version.changes_summary = '; '.join(differences)
+                version.save()
+            messages.success(request, f'Version {version.version_number} created successfully!')
+        else:
+            messages.success(request, f'File uploaded as Version {version.version_number}!')
+        
+        return redirect('file_versions', uuid=file.uuid)
+    
+    context = {
+        'file': file,
+        'previous_version': previous_version,
+    }
+    return render(request, template_name, context)
+
+
+@login_required
+def version_compare(request, uuid, v1_id, v2_id):
+    """Compare two versions of a file"""
+    file = get_object_or_404(File, uuid=uuid)
+    template_name = 'register/version_compare.html'
+    
+    differences, error = file.compare_versions(v1_id, v2_id)
+    
+    if error:
+        messages.error(request, error)
+        return redirect('file_versions', uuid=uuid)
+    
+    v1 = file.versions.get(id=v1_id)
+    v2 = file.versions.get(id=v2_id)
+    
+    context = {
+        'file': file,
+        'v1': v1,
+        'v2': v2,
+        'differences': differences,
+    }
+    return render(request, template_name, context)

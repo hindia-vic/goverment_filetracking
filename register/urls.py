@@ -77,6 +77,11 @@ urlpatterns = [
     path('files/<uuid:uuid>/archive/', views.FileArchiveView.as_view(), name='file_archive'),
     path('files/<uuid:uuid>/restore/', views.FileRestoreView.as_view(), name='file_restore'),
     path('files/<uuid:uuid>/versions/', views.FileVersionHistoryView.as_view(), name='file_versions'),
+    path('files/<uuid:uuid>/return/', views.file_return_upload, name='file_return_upload'),
+    path('files/<uuid:uuid>/compare/<int:v1_id>/<int:v2_id>/', views.version_compare, name='version_compare'),
+    
+    # QR Code scan
+    path('scan/', views.qr_scan_lookup, name='qr_scan'),
     
     # Tags management
     path('tags/', views.TagListView.as_view(), name='tag_list'),

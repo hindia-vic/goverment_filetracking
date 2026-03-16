@@ -1,0 +1,192 @@
+{% extends 'register/base.html' %}
+{% load static %}
+
+{% block title %}Compare Versions - File Tracking System{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row">
+        <div class="col-12">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{% url 'dashboard' %}">Dashboard</a></li>
+                    <li class="breadcrumb-item"><a href="{% url 'file_list' %}">Files</a></li>
+                    <li class="breadcrumb-item"><a href="{% url 'file_detail' file.uuid %}">{{ file.reference }}</a></li>
+                    <li class="breadcrumb-item"><a href="{% url 'file_versions' file.uuid %}">Versions</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Compare</li>
+                </ol>
+            </nav>
+        </div>
+    </div>
+    
+    <div class="row mb-4">
+        <div class="col-12">
+            <h2>
+                <i class="bi bi-columns-gap"></i> Compare Versions
+            </h2>
+            <p class="text-muted">
+                Comparing Version {{ v1.version_number }} with Version {{ v2.version_number }}
+            </p>
+        </div>
+    </div>
+    
+    <!-- Version Cards -->
+    <div class="row mb-4">
+        <!-- Version 1 -->
+        <div class="col-md-6">
+            <div class="card border-primary">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Version {{ v1.version_number }}</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm">
+                        <tr>
+                            <th>Date:</th>
+                            <td>{{ v1.created_at|date:"M d, Y H:i" }}</td>
+                        </tr>
+                        <tr>
+                            <th>By:</th>
+                            <td>{{ v1.created_by.get_full_name|default:v1.created_by.username }}</td>
+                        </tr>
+                        <tr>
+                            <th>Title:</th>
+                            <td>{{ v1.title }}</td>
+                        </tr>
+                        <tr>
+                            <th>Change Type:</th>
+                            <td>
+                                <span class="badge bg-secondary">{{ v1.get_change_type_display }}</span>
+                            </td>
+                        </tr>
+                        {% if v1.file_attachment %}
+                        <tr>
+                            <th>Filename:</th>
+                            <td>{{ v1.original_filename }}</td>
+                        </tr>
+                        <tr>
+                            <th>Size:</th>
+                            <td>
+                                {% if v1.file_size > 1024 %}
+                                    {{ v1.file_size|divisibleby:1024 }} KB
+                                {% else %}
+                                    {{ v1.file_size }} bytes
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>File:</th>
+                            <td>
+                                <a href="{{ v1.file_attachment.url }}" class="btn btn-sm btn-outline-primary" target="_blank">
+                                    <i class="bi bi-download"></i> Download
+                                </a>
+                            </td>
+                        </tr>
+                        {% endif %}
+                        {% if v1.notes %}
+                        <tr>
+                            <th>Notes:</th>
+                            <td>{{ v1.notes }}</td>
+                        </tr>
+                        {% endif %}
+                    </table>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Version 2 -->
+        <div class="col-md-6">
+            <div class="card border-success">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">Version {{ v2.version_number }}</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm">
+                        <tr>
+                            <th>Date:</th>
+                            <td>{{ v2.created_at|date:"M d, Y H:i" }}</td>
+                        </tr>
+                        <tr>
+                            <th>By:</th>
+                            <td>{{ v2.created_by.get_full_name|default:v2.created_by.username }}</td>
+                        </tr>
+                        <tr>
+                            <th>Title:</th>
+                            <td>{{ v2.title }}</td>
+                        </tr>
+                        <tr>
+                            <th>Change Type:</th>
+                            <td>
+                                <span class="badge bg-secondary">{{ v2.get_change_type_display }}</span>
+                            </td>
+                        </tr>
+                        {% if v2.file_attachment %}
+                        <tr>
+                            <th>Filename:</th>
+                            <td>{{ v2.original_filename }}</td>
+                        </tr>
+                        <tr>
+                            <th>Size:</th>
+                            <td>
+                                {% if v2.file_size > 1024 %}
+                                    {{ v2.file_size|divisibleby:1024 }} KB
+                                {% else %}
+                                    {{ v2.file_size }} bytes
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>File:</th>
+                            <td>
+                                <a href="{{ v2.file_attachment.url }}" class="btn btn-sm btn-outline-primary" target="_blank">
+                                    <i class="bi bi-download"></i> Download
+                                </a>
+                            </td>
+                        </tr>
+                        {% endif %}
+                        {% if v2.notes %}
+                        <tr>
+                            <th>Notes:</th>
+                            <td>{{ v2.notes }}</td>
+                        </tr>
+                        {% endif %}
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Differences -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-warning">
+                    <h5 class="mb-0">
+                        <i class="bi bi-diff"></i> Changes Detected
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if differences %}
+                        <ul class="list-group">
+                            {% for diff in differences %}
+                                <li class="list-group-item">
+                                    <i class="bi bi-arrow-right text-primary"></i> {{ diff }}
+                                </li>
+                            {% endfor %}
+                        </ul>
+                    {% else %}
+                        <p class="text-muted mb-0">No differences found between these versions.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row mt-4">
+        <div class="col-12">
+            <a href="{% url 'file_versions' file.uuid %}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> Back to Versions
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}
