@@ -83,6 +83,10 @@ urlpatterns = [
     # QR Code scan
     path('scan/', views.qr_scan_lookup, name='qr_scan'),
     
+    # My accessible files
+    path('my-files/', views.my_accessible_files, name='my_accessible_files'),
+    path('files/<uuid:uuid>/download/', views.file_download, name='file_download'),
+    
     # Tags management
     path('tags/', views.TagListView.as_view(), name='tag_list'),
     path('tags/create/', views.TagCreateView.as_view(), name='tag_create'),

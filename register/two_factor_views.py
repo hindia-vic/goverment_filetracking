@@ -24,6 +24,9 @@ def login_view(request):
         user = authenticate(request, username=username, password=password)
         
         if user is not None:
+            # Set backend for multiple authentication backends
+            user.backend = 'django.contrib.auth.backends.ModelBackend'
+            
             # Check if user has 2FA enabled
             has_2fa = TOTPDevice.objects.filter(user=user, confirmed=True).exists()
             

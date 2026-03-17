@@ -180,10 +180,19 @@ class FileUploadForm(forms.ModelForm):
         )
     
     def save(self, commit=True):
+        # Get the file attachment from cleaned_data before saving
+        file_attachment = self.cleaned_data.get('file_attachment') if hasattr(self, 'cleaned_data') else None
+        
         instance = super().save(commit=False)
+        
+        # Set the file attachment
+        if file_attachment:
+            instance.file_attachment = file_attachment
+            instance.original_filename = file_attachment.name
+        
         if self.user:
             instance.created_by = self.user
-            instance.original_filename = instance.file_attachment.name if instance.file_attachment else ''
+            
         if commit:
             instance.save()
             # Create initial version if file attached

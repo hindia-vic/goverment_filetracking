@@ -120,7 +120,7 @@
                     {% endif %}
                     
                     <!-- Upload Form -->
-                    <form method="post" enctype="multipart/form-data" class="needs-validation" novalidate>
+                    <form method="post" enctype="multipart/form-data" class="needs-validation" novalidate id="fileReturnForm">
                         {% csrf_token %}
                         
                         <div class="mb-4">
@@ -136,6 +136,43 @@
                                    required>
                             <div class="form-text">
                                 Accepted formats: PDF, Word, Excel, PowerPoint, Text, Images
+                            </div>
+                        </div>
+                        
+                        <!-- File Preview Section -->
+                        <div id="filePreviewSection" class="mb-4" style="display: none;">
+                            <label class="form-label fw-bold">File Preview:</label>
+                            <div class="card border">
+                                <div class="card-body">
+                                    <!-- Image Preview -->
+                                    <div id="imagePreview" style="display: none;">
+                                        <img id="previewImage" src="" alt="Preview" class="img-fluid rounded" style="max-height: 300px; object-fit: contain;">
+                                    </div>
+                                    <!-- PDF Preview -->
+                                    <div id="pdfPreview" style="display: none;">
+                                        <div class="text-center py-4">
+                                            <i class="bi bi-file-earmark-pdf fs-1 text-danger"></i>
+                                            <p class="mt-2 mb-0" id="pdfFileName"></p>
+                                            <small class="text-muted">PDF Document</small>
+                                        </div>
+                                    </div>
+                                    <!-- Other File Preview -->
+                                    <div id="otherFilePreview" style="display: none;">
+                                        <div class="d-flex align-items-center">
+                                            <i class="bi bi-file-earmark-text fs-1 text-primary me-3"></i>
+                                            <div>
+                                                <p class="mb-0 fw-bold" id="fileName"></p>
+                                                <small class="text-muted" id="fileSize"></small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <!-- Remove File Button -->
+                                    <div class="mt-3">
+                                        <button type="button" id="removeFileBtn" class="btn btn-sm btn-outline-danger">
+                                            <i class="bi bi-x-circle me-1"></i>Remove File
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                         
@@ -173,4 +210,78 @@
         </div>
     </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const fileInput = document.getElementById('file_attachment');
+    const previewSection = document.getElementById('filePreviewSection');
+    const imagePreview = document.getElementById('imagePreview');
+    const pdfPreview = document.getElementById('pdfPreview');
+    const otherFilePreview = document.getElementById('otherFilePreview');
+    const previewImage = document.getElementById('previewImage');
+    const pdfFileName = document.getElementById('pdfFileName');
+    const fileName = document.getElementById('fileName');
+    const fileSize = document.getElementById('fileSize');
+    const removeFileBtn = document.getElementById('removeFileBtn');
+    
+    if (fileInput) {
+        fileInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            
+            if (file) {
+                previewSection.style.display = 'block';
+                
+                // Hide all previews first
+                imagePreview.style.display = 'none';
+                pdfPreview.style.display = 'none';
+                otherFilePreview.style.display = 'none';
+                
+                // Check file type
+                const fileType = file.type;
+                const fileNameText = file.name;
+                const fileSizeText = formatFileSize(file.size);
+                
+                if (fileType.startsWith('image/')) {
+                    // Image file
+                    imagePreview.style.display = 'block';
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        previewImage.src = e.target.result;
+                    };
+                    reader.readAsDataURL(file);
+                } else if (fileType === 'application/pdf') {
+                    // PDF file
+                    pdfPreview.style.display = 'block';
+                    pdfFileName.textContent = fileNameText + ' (' + fileSizeText + ')';
+                } else {
+                    // Other files
+                    otherFilePreview.style.display = 'block';
+                    fileName.textContent = fileNameText;
+                    fileSize.textContent = fileSizeText;
+                }
+            } else {
+                previewSection.style.display = 'none';
+            }
+        });
+        
+        // Remove file button
+        removeFileBtn.addEventListener('click', function() {
+            fileInput.value = '';
+            previewSection.style.display = 'none';
+            imagePreview.style.display = 'none';
+            pdfPreview.style.display = 'none';
+            otherFilePreview.style.display = 'none';
+            previewImage.src = '';
+        });
+    }
+    
+    function formatFileSize(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+});
+</script>
 {% endblock %}

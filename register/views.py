@@ -45,7 +45,9 @@ class RegisterView(View):
         form = UserRegistrationForm(request.POST)
         if form.is_valid():
             user = form.save()
-            login(request, user, backend='django.contrib.auth.backends.ModelBackend')
+            # Set the backend attribute before login when using multiple authentication backends
+            user.backend = 'django.contrib.auth.backends.ModelBackend'
+            login(request, user)
             messages.success(request, 'Registration successful! Welcome to File Tracking System.')
             
             # Send welcome email
@@ -1110,3 +1112,163 @@ def version_compare(request, uuid, v1_id, v2_id):
         'differences': differences,
     }
     return render(request, template_name, context)
+
+
+@login_required
+def my_accessible_files(request):
+    """
+    Show files the user has been permitted to access
+    - For registry/admin: all files
+    - For regular users: approved requests, checked out files, pending requests
+    """
+    user = request.user
+    
+    # Check if user is registry or admin
+    is_registry_or_admin = user.is_superuser
+    if not is_registry_or_admin:
+        try:
+            if hasattr(user, 'profile') and user.profile:
+                if user.profile.role in ['registry', 'admin']:
+                    is_registry_or_admin = True
+        except Exception:
+            pass
+    
+    if is_registry_or_admin:
+        # Registry/Admin can see all files
+        all_files = File.objects.select_related('department', 'current_holder', 'created_by').order_by('-created_at')
+        
+        context = {
+            'all_files': all_files,
+            'is_admin': True,
+            'approved_requests': FileRequest.objects.none(),
+            'checked_out_files': File.objects.none(),
+            'pending_requests': FileRequest.objects.none(),
+        }
+    else:
+        # Regular users see only their permitted files
+        # Files the user has been approved to access
+        approved_requests = FileRequest.objects.filter(
+            requesting_user=user,
+            status__in=['approved', 'ready_for_pickup', 'handed_over', 'confirmed']
+        ).select_related('file', 'file__department')
+        
+        # Files checked out to this user
+        checked_out_files = File.objects.filter(
+            current_holder=user,
+            status='checked_out'
+        ).select_related('department')
+        
+        # User's pending requests
+        pending_requests = FileRequest.objects.filter(
+            requesting_user=user,
+            status='pending'
+        ).select_related('file', 'file__department')
+        
+        context = {
+            'approved_requests': approved_requests,
+            'checked_out_files': checked_out_files,
+            'pending_requests': pending_requests,
+            'is_admin': False,
+            'all_files': File.objects.none(),
+        }
+    
+    return render(request, 'register/my_accessible_files.html', context)
+
+
+@login_required
+def file_download(request, uuid):
+    """
+    Download a file if the user has permission to access it.
+    Permission is granted if user is:
+    - The current holder
+    - Has an approved request for this file
+    - Is the creator of the file
+    - Is an admin/registry user
+    """
+    from django.http import HttpResponse
+    
+    file = get_object_or_404(File, uuid=uuid)
+    
+    # Check if user has permission to download
+    has_permission = False
+    
+    # User is current holder
+    if file.current_holder == request.user:
+        has_permission = True
+    
+    # User has approved request
+    elif FileRequest.objects.filter(
+        file=file,
+        requesting_user=request.user,
+        status__in=['ready_for_pickup', 'handed_over', 'confirmed']
+    ).exists():
+        has_permission = True
+    
+    # User is the creator
+    elif file.created_by == request.user:
+        has_permission = True
+    
+    # User is admin or registry
+    elif request.user.is_superuser:
+        has_permission = True
+    else:
+        # Check for registry/admin role
+        try:
+            if hasattr(request.user, 'profile') and request.user.profile:
+                if request.user.profile.role in ['registry', 'admin']:
+                    has_permission = True
+        except Exception:
+            pass
+    
+    if not has_permission:
+        messages.error(request, 'You do not have permission to download this file.')
+        return redirect('file_detail', uuid=uuid)
+    
+    # Check if file has attachment
+    if not file.file_attachment:
+        # Check if there's a version with attachment
+        latest_version = file.versions.filter(file_attachment__isnull=False).first()
+        if latest_version:
+            # Log the download activity
+            ActivityLog.objects.create(
+                user=request.user,
+                action='file_download',
+                description=f'Downloaded file: {file.reference} (Version {latest_version.version_number})',
+                ip_address=get_client_ip(request),
+                user_agent=request.META.get('HTTP_USER_AGENT', '')
+            )
+            # Serve the file from version
+            file_path = latest_version.file_attachment.path
+            with open(file_path, 'rb') as f:
+                response = HttpResponse(f.read(), content_type='application/octet-stream')
+                response['Content-Disposition'] = f'attachment; filename="{latest_version.original_filename or latest_version.file_attachment.name}"'
+                return response
+        else:
+            messages.error(request, 'No file attached to this document.')
+            return redirect('file_detail', uuid=uuid)
+    
+    # Log the download activity
+    ActivityLog.objects.create(
+        user=request.user,
+        action='file_download',
+        description=f'Downloaded file: {file.reference}',
+        ip_address=get_client_ip(request),
+        user_agent=request.META.get('HTTP_USER_AGENT', '')
+    )
+    
+    # Serve the file
+    file_path = file.file_attachment.path
+    with open(file_path, 'rb') as f:
+        response = HttpResponse(f.read(), content_type='application/octet-stream')
+        response['Content-Disposition'] = f'attachment; filename="{file.original_filename or file.file_attachment.name}"'
+        return response
+
+
+def get_client_ip(request):
+    """Get client IP address from request"""
+    x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+    if x_forwarded_for:
+        ip = x_forwarded_for.split(',')[0]
+    else:
+        ip = request.META.get('REMOTE_ADDR')
+    return ip

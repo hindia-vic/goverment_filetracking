@@ -127,6 +127,18 @@
                         </a>
                     </div>
                     
+                    <div class="col-md-4">
+                        <a href="{% url 'my_accessible_files' %}" class="text-decoration-none">
+                            <div class="d-flex align-items-center p-3 bg-info bg-opacity-10 rounded hover-effect">
+                                <i class="bi bi-folder-check text-info fs-4 me-3"></i>
+                                <div>
+                                    <strong class="d-block">My Accessible Files</strong>
+                                    <small class="text-muted">Access permitted files</small>
+                                </div>
+                            </div>
+                        </a>
+                    </div>
+                    
                     {% if user.profile.role in 'registry,admin' or user.is_superuser %}
                     <div class="col-md-4">
                         <a href="{% url 'request_list' %}" class="text-decoration-none">
