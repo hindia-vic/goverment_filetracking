@@ -450,7 +450,7 @@ class FileCreateView(LoginRequiredMixin, View):
             messages.error(request, 'Only registry officers can upload new files.')
             return redirect('dashboard')
         
-        form = FileUploadForm(request.POST)
+        form = FileUploadForm(request.POST, request.FILES)
         form.user = request.user
         
         if form.is_valid():
