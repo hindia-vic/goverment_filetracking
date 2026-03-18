@@ -1,4 +1,5 @@
 import io
+import os
 from datetime import timedelta
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required, permission_required
@@ -1184,8 +1185,15 @@ def file_download(request, uuid):
     - Has an approved request for this file
     - Is the creator of the file
     - Is an admin/registry user
+    
+    For PDF files, a QR code watermark is added on download.
     """
     from django.http import HttpResponse
+    from django.conf import settings
+    import io
+    
+    # Import watermark function
+    from register.watermark import add_qr_watermark_to_pdf_bytes
     
     file = get_object_or_404(File, uuid=uuid)
     
@@ -1224,44 +1232,67 @@ def file_download(request, uuid):
         messages.error(request, 'You do not have permission to download this file.')
         return redirect('file_detail', uuid=uuid)
     
-    # Check if file has attachment
+    # Determine which file to use and version info
+    version = None
     if not file.file_attachment:
         # Check if there's a version with attachment
-        latest_version = file.versions.filter(file_attachment__isnull=False).first()
-        if latest_version:
-            # Log the download activity
-            ActivityLog.objects.create(
-                user=request.user,
-                action='file_download',
-                description=f'Downloaded file: {file.reference} (Version {latest_version.version_number})',
-                ip_address=get_client_ip(request),
-                user_agent=request.META.get('HTTP_USER_AGENT', '')
-            )
-            # Serve the file from version
-            file_path = latest_version.file_attachment.path
-            with open(file_path, 'rb') as f:
-                response = HttpResponse(f.read(), content_type='application/octet-stream')
-                response['Content-Disposition'] = f'attachment; filename="{latest_version.original_filename or latest_version.file_attachment.name}"'
-                return response
-        else:
+        version = file.versions.filter(file_attachment__isnull=False).first()
+        if not version:
             messages.error(request, 'No file attached to this document.')
             return redirect('file_detail', uuid=uuid)
+    
+    # Prepare file info for watermark
+    file_info = {
+        'reference': file.reference,
+        'title': file.title,
+        'downloaded_by': request.user.get_full_name() or request.user.username,
+    }
+    
+    # Get QR code path
+    qr_code_path = None
+    if file.qr_code:
+        qr_code_path = file.qr_code.path
+    
+    # Check if file has attachment and is PDF
+    if version:
+        file_path = version.file_attachment.path
+        file_name = version.original_filename or version.file_attachment.name
+        is_pdf = file_name.lower().endswith('.pdf')
+    else:
+        file_path = file.file_attachment.path
+        file_name = file.original_filename or file.file_attachment.name
+        is_pdf = file_name.lower().endswith('.pdf')
     
     # Log the download activity
     ActivityLog.objects.create(
         user=request.user,
         action='file_download',
-        description=f'Downloaded file: {file.reference}',
+        description=f'Downloaded file: {file.reference}' + (f' (Version {version.version_number})' if version else ''),
         ip_address=get_client_ip(request),
         user_agent=request.META.get('HTTP_USER_AGENT', '')
     )
     
     # Serve the file
-    file_path = file.file_attachment.path
     with open(file_path, 'rb') as f:
-        response = HttpResponse(f.read(), content_type='application/octet-stream')
-        response['Content-Disposition'] = f'attachment; filename="{file.original_filename or file.file_attachment.name}"'
-        return response
+        file_content = f.read()
+    
+    # Add QR watermark to PDF if applicable
+    if is_pdf and qr_code_path:
+        watermarked_pdf = add_qr_watermark_to_pdf_bytes(
+            io.BytesIO(file_content),
+            qr_code_path,
+            file_info=file_info,
+            position='top-right'
+        )
+        if watermarked_pdf:
+            file_content = watermarked_pdf.getvalue()
+            # Add _watermarked to filename
+            base_name, ext = os.path.splitext(file_name)
+            file_name = f"{base_name}_watermarked{ext}"
+    
+    response = HttpResponse(file_content, content_type='application/octet-stream')
+    response['Content-Disposition'] = f'attachment; filename="{file_name}"'
+    return response
 
 
 def get_client_ip(request):
