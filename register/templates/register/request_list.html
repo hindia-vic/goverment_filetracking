@@ -18,6 +18,12 @@
         </a>
     </li>
     <li class="nav-item">
+        <a class="nav-link {% if current_status == 'pending_return' %}active{% endif %}" href="?status=pending_return">
+            Returns Pending
+            {% if return_count %}<span class="badge bg-warning text-dark ms-1">{{ return_count }}</span>{% endif %}
+        </a>
+    </li>
+    <li class="nav-item">
         <a class="nav-link {% if current_status == 'ready_for_pickup' %}active{% endif %}" href="?status=ready_for_pickup">Ready for Pickup</a>
     </li>
     <li class="nav-item">
@@ -66,6 +72,9 @@
                                 {% elif req.status == 'approved' %}bg-primary
                                 {% elif req.status == 'ready_for_pickup' %}bg-success
                                 {% elif req.status == 'handed_over' %}bg-warning
+                                {% elif req.status == 'pending_return' %}bg-warning text-dark
+                                {% elif req.status == 'returned_verified' %}bg-info
+                                {% elif req.status == 'return_rejected' %}bg-danger
                                 {% elif req.status == 'confirmed' %}bg-info
                                 {% elif req.status == 'rejected' %}bg-danger{% endif %}">
                                 {{ req.get_status_display }}
@@ -79,6 +88,8 @@
                             <a href="{% url 'request_handover' req.pk %}" class="btn btn-sm btn-success">Handover</a>
                             {% elif req.status == 'handed_over' %}
                             <a href="{% url 'request_confirm' req.pk %}" class="btn btn-sm btn-info">Confirm</a>
+                            {% elif req.status == 'pending_return' %}
+                            <a href="{% url 'request_verify_return' req.pk %}" class="btn btn-sm btn-warning">Verify Return</a>
                             {% else %}
                             <a href="{% url 'file_detail' req.file.uuid %}" class="btn btn-sm btn-outline-secondary">View</a>
                             {% endif %}

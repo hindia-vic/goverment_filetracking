@@ -45,15 +45,38 @@
                     {% endif %}
                 </div>
                 
-                <form method="post">
+                <form method="post" enctype="multipart/form-data">
                     {% csrf_token %}
                     {% load crispy_forms_tags %}
                     {{ form|crispy }}
                     
+                    {% if has_attachment %}
+                    <div class="alert alert-warning mt-3">
+                        <i class="bi bi-file-earmark-text me-2"></i>
+                        <strong>This file has a document attachment.</strong> You must upload the updated document when returning the file.
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="file_attachment" class="form-label">
+                            <strong>Upload Document (Required)</strong>
+                            <span class="text-danger">*</span>
+                        </label>
+                        <input type="file" 
+                               class="form-control" 
+                               id="file_attachment" 
+                               name="file_attachment" 
+                               accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.jpg,.jpeg,.png"
+                               required>
+                        <div class="form-text">
+                            Upload the updated document. This will create a new version of the file.
+                        </div>
+                    </div>
+                    {% else %}
                     <div class="alert alert-warning mt-3">
                         <i class="bi bi-info-circle me-2"></i>
                         <strong>Note:</strong> Please verify the file condition before returning to registry.
                     </div>
+                    {% endif %}
                     
                     <div class="d-grid gap-2 mt-4">
                         <button type="submit" class="btn btn-success btn-lg">

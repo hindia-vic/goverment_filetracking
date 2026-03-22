@@ -158,6 +158,44 @@ Notes: {file_request.registry_notes or 'None'}
 
 Please confirm your employee ID when collecting the file.
 
+IMPORTANT: You must confirm receipt in the system to complete the checkout process. The file will be checked out to you only after you confirm receipt.
+
+Best regards,
+File Tracking System
+            """,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[recipient.email],
+            fail_silently=False,
+        )
+        return 1
+    except Exception as e:
+        print(f"Error sending email: {e}")
+        return 0
+
+
+def send_receipt_confirmation_notification(file_request):
+    """Send email when user confirms receipt of file (file is now checked out)"""
+    recipient = file_request.requesting_user
+    
+    if not recipient.email:
+        return 0
+    
+    subject = f'File Checked Out - {file_request.file.reference}'
+    
+    try:
+        send_mail(
+            subject=subject,
+            message=f"""
+Dear {recipient.get_full_name() or recipient.username},
+
+You have confirmed receipt of the file. The file has been checked out to you.
+
+File: {file_request.file.reference} - {file_request.file.title}
+Checked Out At: {file_request.file.checked_out_at.strftime('%Y-%m-%d %H:%M') if file_request.file.checked_out_at else 'N/A'}
+Due Date: {file_request.file.due_date.strftime('%Y-%m-%d') if file_request.file.due_date else 'N/A'}
+
+Please ensure you return the file by the due date.
+
 Best regards,
 File Tracking System
             """,
@@ -236,6 +274,92 @@ File Tracking System
             """,
             from_email=settings.DEFAULT_FROM_EMAIL,
             recipient_list=[user.email],
+            fail_silently=False,
+        )
+        return 1
+    except Exception as e:
+        print(f"Error sending email: {e}")
+        return 0
+
+
+def send_return_pending_notification(file_request):
+    """Send email to registry when user wants to return a file"""
+    from django.contrib.auth.models import User
+    
+    # Get all registry and admin users
+    recipients = User.objects.filter(
+        profiles__role__in=['registry', 'admin']
+    ) | User.objects.filter(is_superuser=True)
+    
+    recipient_emails = [u.email for u in recipients.distinct() if u.email]
+    
+    if not recipient_emails:
+        return 0
+    
+    subject = f'File Return Pending Verification - {file_request.file.reference}'
+    
+    try:
+        send_mail(
+            subject=subject,
+            message=f"""
+Dear Registry/Admin,
+
+A user wants to return a file and requires verification.
+
+File: {file_request.file.reference} - {file_request.file.title}
+Returned by: {file_request.requesting_user.get_full_name() or file_request.requesting_user.username}
+Department: {file_request.requesting_user.profile.department.name if hasattr(file_request.requesting_user, 'profile') and file_request.requesting_user.profile.department else 'N/A'}
+
+Please verify the file condition and confirm the return in the system.
+
+Best regards,
+File Tracking System
+            """,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=recipient_emails,
+            fail_silently=False,
+        )
+        return len(recipient_emails)
+    except Exception as e:
+        print(f"Error sending email: {e}")
+        return 0
+
+
+def send_return_verified_notification(file_request):
+    """Send email to user when their return is verified"""
+    recipient = file_request.requesting_user
+    
+    if not recipient.email:
+        return 0
+    
+    condition_display = {
+        'good': 'Good Condition',
+        'damaged': 'Damaged',
+        'missing_pages': 'Missing Pages',
+        'other': 'Other'
+    }.get(file_request.return_condition, file_request.return_condition)
+    
+    subject = f'File Return Verified - {file_request.file.reference}'
+    
+    try:
+        send_mail(
+            subject=subject,
+            message=f"""
+Dear {recipient.get_full_name() or recipient.username},
+
+Your file return has been verified by the registry.
+
+File: {file_request.file.reference} - {file_request.file.title}
+Condition: {condition_display}
+{f"Notes: {file_request.return_notes}" if file_request.return_notes else ""}
+
+The file has been returned to the registry.
+
+Best regards,
+File Tracking System
+            """,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[recipient.email],
             fail_silently=False,
         )
         return 1

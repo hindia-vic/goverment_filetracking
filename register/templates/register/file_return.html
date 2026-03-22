@@ -59,6 +59,12 @@
                                             In Registry
                                         {% endif %}
                                     </p>
+                                    {% if user_employee_id %}
+                                    <p class="mb-1">
+                                        <strong>Your Employee ID:</strong>
+                                        <span class="text-primary fw-bold">{{ user_employee_id }}</span>
+                                    </p>
+                                    {% endif %}
                                     {% if file.qr_code %}
                                     <p class="mb-0">
                                         <strong>QR Code:</strong><br>
@@ -185,6 +191,22 @@
                                       name="changes_summary" 
                                       rows="3"
                                       placeholder="Describe what changed in this version..."></textarea>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="employee_id" class="form-label">
+                                <strong>Employee ID (Confirmation Number)</strong>
+                                <span class="text-danger">*</span>
+                            </label>
+                            <input type="text" 
+                                   class="form-control" 
+                                   id="employee_id" 
+                                   name="employee_id" 
+                                   placeholder="Enter your Employee ID"
+                                   required>
+                            <div class="form-text">
+                                Enter your Employee ID to confirm your identity. This must match your registered Employee ID.
+                            </div>
                         </div>
                         
                         <div class="mb-3">

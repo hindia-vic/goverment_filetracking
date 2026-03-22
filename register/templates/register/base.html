@@ -40,7 +40,7 @@
                         </a>
                     </li>
                     
-                    {% if user.profile.role in 'registry,admin' or user.is_superuser %}
+                    {% if user.is_superuser or user.profile.role == 'registry' or user.profile.role == 'admin' %}
                     <li class="nav-item">
                         <a class="nav-link {% if 'request_list' in request.resolver_match.url_name %}active{% endif %}" href="{% url 'request_list' %}">
                             <i class="bi bi-clipboard-check me-1"></i>Requests

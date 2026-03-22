@@ -101,7 +101,7 @@
             </div>
             <div class="card-body">
                 <div class="row g-3">
-                    {% if user.profile.role in 'registry,admin' or user.is_superuser %}
+                    {% if user.is_superuser or user.profile.role == 'registry' or user.profile.role == 'admin' %}
                     <div class="col-md-4">
                         <a href="{% url 'file_upload' %}" class="text-decoration-none">
                             <div class="d-flex align-items-center p-3 bg-primary bg-opacity-10 rounded hover-effect">
@@ -139,7 +139,7 @@
                         </a>
                     </div>
                     
-                    {% if user.profile.role in 'registry,admin' or user.is_superuser %}
+                    {% if user.is_superuser or user.profile.role == 'registry' or user.profile.role == 'admin' %}
                     <div class="col-md-4">
                         <a href="{% url 'request_list' %}" class="text-decoration-none">
                             <div class="d-flex align-items-center p-3 bg-warning bg-opacity-10 rounded hover-effect">
@@ -298,7 +298,7 @@
     </div>
     
     <!-- Pending Approvals (for Registry/Admin) -->
-    {% if user.profile.role in 'registry,admin' or user.is_superuser %}
+    {% if user.is_superuser or user.profile.role == 'registry' or user.profile.role == 'admin' %}
     <div class="col-lg-6">
         <div class="card border-0 shadow-sm">
             <div class="card-header bg-white border-0 d-flex justify-content-between align-items-center">
@@ -321,12 +321,82 @@
                     {% endfor %}
                 </div>
                 <div class="card-footer bg-white border-0">
-                    <a href="{% url 'request_list' %}" class="btn btn-sm btn-outline-primary w-100">View All Requests</a>
+                    <a href="{% url 'request_list' %}?status=pending" class="btn btn-sm btn-outline-primary w-100">View All Requests</a>
                 </div>
                 {% else %}
                 <div class="text-center py-4 text-muted">
                     <i class="bi bi-check-circle fs-1 mb-2"></i>
                     <p class="mb-0">No pending approvals</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <!-- Ready for Pickup (for Registry/Admin) -->
+    <div class="col-lg-6">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white border-0 d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="bi bi-box-seam me-2"></i>Ready for Pickup</h5>
+                {% if ready_for_pickup %}<span class="badge bg-success">{{ ready_for_pickup|length }}</span>{% endif %}
+            </div>
+            <div class="card-body p-0">
+                {% if ready_for_pickup %}
+                <div class="list-group list-group-flush">
+                    {% for req in ready_for_pickup %}
+                    <a href="{% url 'request_handover' req.pk %}" class="list-group-item list-group-item-action">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>{{ req.file.reference }}</strong>
+                                <br><small class="text-muted">by {{ req.requesting_user.get_full_name }}</small>
+                            </div>
+                            <span class="badge bg-success">{{ req.get_status_display }}</span>
+                        </div>
+                    </a>
+                    {% endfor %}
+                </div>
+                <div class="card-footer bg-white border-0">
+                    <a href="{% url 'request_list' %}?status=ready_for_pickup" class="btn btn-sm btn-outline-primary w-100">View All Ready for Pickup</a>
+                </div>
+                {% else %}
+                <div class="text-center py-4 text-muted">
+                    <i class="bi bi-check-circle fs-1 mb-2"></i>
+                    <p class="mb-0">No files ready for pickup</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <!-- Pending Returns (for Registry/Admin) -->
+    <div class="col-lg-6">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white border-0 d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="bi bi-arrow-return-left me-2"></i>Pending Returns</h5>
+                {% if pending_returns %}<span class="badge bg-warning">{{ pending_returns|length }}</span>{% endif %}
+            </div>
+            <div class="card-body p-0">
+                {% if pending_returns %}
+                <div class="list-group list-group-flush">
+                    {% for req in pending_returns %}
+                    <a href="{% url 'request_verify_return' req.pk %}" class="list-group-item list-group-item-action">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>{{ req.file.reference }}</strong>
+                                <br><small class="text-muted">by {{ req.requesting_user.get_full_name }}</small>
+                            </div>
+                            <span class="badge bg-warning">{{ req.get_status_display }}</span>
+                        </div>
+                    </a>
+                    {% endfor %}
+                </div>
+                <div class="card-footer bg-white border-0">
+                    <a href="{% url 'request_list' %}?status=pending_return" class="btn btn-sm btn-outline-primary w-100">View All Pending Returns</a>
+                </div>
+                {% else %}
+                <div class="text-center py-4 text-muted">
+                    <i class="bi bi-check-circle fs-1 mb-2"></i>
+                    <p class="mb-0">No pending returns</p>
                 </div>
                 {% endif %}
             </div>

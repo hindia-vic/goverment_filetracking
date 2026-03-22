@@ -54,10 +54,17 @@ urlpatterns = [
     path('requests/<int:pk>/process/', views.FileRequestProcessView.as_view(), name='request_process'),
     path('requests/<int:pk>/handover/', views.FileRequestHandoverView.as_view(), name='request_handover'),
     path('requests/<int:pk>/confirm/', views.FileRequestConfirmView.as_view(), name='request_confirm'),
+    path('requests/<int:pk>/return/', views.FileReturnInitiateView.as_view(), name='request_return'),
+    path('requests/<int:pk>/resubmit-return/', views.FileReturnResubmitView.as_view(), name='file_return_resubmit'),
+    path('requests/<int:pk>/verify-return/', views.FileReturnVerifyView.as_view(), name='request_verify_return'),
+    path('requests/<int:pk>/reject-return/', views.FileReturnRejectView.as_view(), name='request_reject_return'),
     
     # Notifications
     path('notifications/', views.NotificationListView.as_view(), name='notification_list'),
     path('notifications/<int:pk>/', views.NotificationDetailView.as_view(), name='notification_detail'),
+    path('notifications/mark-all-read/', views.NotificationMarkAllReadView.as_view(), name='notification_mark_all_read'),
+    path('notifications/<int:pk>/delete/', views.NotificationClearView.as_view(), name='notification_delete'),
+    path('notifications/clear-all/', views.NotificationClearAllView.as_view(), name='notification_clear_all'),
     
     # Admin: Departments
     path('departments/', views.DepartmentListView.as_view(), name='department_list'),

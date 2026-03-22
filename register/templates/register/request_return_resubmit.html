@@ -1,0 +1,97 @@
+{% extends 'register/base.html' %}
+
+{% block title %}Re-submit File Return - File Tracking System{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card shadow">
+                <div class="card-header bg-warning">
+                    <h4 class="mb-0">
+                        <i class="bi bi-arrow-repeat"></i> Re-submit File Return
+                    </h4>
+                </div>
+                <div class="card-body">
+                    {% if messages %}
+                        {% for message in messages %}
+                            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                                {{ message }}
+                                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+                    
+                    <div class="alert alert-danger">
+                        <h5 class="alert-heading">Your Return Was Rejected</h5>
+                        <p class="mb-0"><strong>Reason:</strong> {{ file_request.return_notes }}</p>
+                    </div>
+                    
+                    <div class="alert alert-info">
+                        <h5 class="alert-heading">File Information</h5>
+                        <p class="mb-1"><strong>Reference:</strong> {{ file_request.file.reference }}</p>
+                        <p class="mb-1"><strong>Title:</strong> {{ file_request.file.title }}</p>
+                        <p class="mb-0"><strong>File UUID:</strong> <code>{{ file_request.file.uuid }}</code></p>
+                    </div>
+                    
+                    {% if latest_version %}
+                    <div class="alert alert-secondary">
+                        <h5 class="alert-heading">Previously Rejected Document</h5>
+                        <p class="mb-1"><strong>Filename:</strong> {{ latest_version.original_filename|default:latest_version.file_attachment.name }}</p>
+                        <p class="mb-0"><strong>Uploaded:</strong> {{ latest_version.created_at|date:"F d, Y H:i" }}</p>
+                        <hr>
+                        <p class="text-danger mb-0"><strong>Note:</strong> This document was rejected because it didn't match the file's QR code. Please upload a document that has the correct QR code.</p>
+                    </div>
+                    {% endif %}
+                    
+                    <form method="post" enctype="multipart/form-data">
+                        {% csrf_token %}
+                        
+                        <div class="mb-3">
+                            <label for="file_attachment" class="form-label">
+                                <strong>Upload New Document</strong>
+                                <span class="text-danger">*</span>
+                            </label>
+                            <input type="file" 
+                                   class="form-control" 
+                                   id="file_attachment" 
+                                   name="file_attachment" 
+                                   accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.jpg,.jpeg,.png"
+                                   required>
+                            <div class="form-text">
+                                Upload the correct document with matching QR code. The system will verify the QR code during return.
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="notes" class="form-label">
+                                <strong>Notes</strong>
+                            </label>
+                            <textarea class="form-control" 
+                                      id="notes" 
+                                      name="notes" 
+                                      rows="3"
+                                      placeholder="Any notes about the return..."></textarea>
+                        </div>
+                        
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle me-2"></i>
+                            <strong>Important:</strong> Make sure the document you upload has the correct QR code that matches this file's UUID. 
+                            Documents without a valid QR code will be rejected.
+                        </div>
+                        
+                        <div class="d-flex justify-content-between">
+                            <a href="{% url 'file_detail' file.uuid %}" class="btn btn-outline-secondary">
+                                <i class="bi bi-arrow-left"></i> Back to File
+                            </a>
+                            <button type="submit" class="btn btn-warning">
+                                <i class="bi bi-arrow-repeat"></i> Re-submit Return
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

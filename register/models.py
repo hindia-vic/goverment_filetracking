@@ -110,6 +110,9 @@ class FileRequest(models.Model):
         ('rejected', 'Rejected'),
         ('ready_for_pickup', 'Ready for Pickup'),
         ('handed_over', 'Handed Over'),
+        ('pending_return', 'Pending Return Confirmation'),
+        ('returned_verified', 'Returned & Verified'),
+        ('return_rejected', 'Return Rejected'),
         ('confirmed', 'Confirmed by User'),
         ('cancelled', 'Cancelled'),
     ]
@@ -131,6 +134,32 @@ class FileRequest(models.Model):
     user_confirmed = models.BooleanField(default=False)
     confirmed_at = models.DateTimeField(null=True, blank=True)
     user_confirmation_notes = models.TextField(blank=True)
+    
+    # Return verification (for when user returns file)
+    return_condition = models.CharField(
+        max_length=20,
+        choices=[
+            ('good', 'Good Condition'),
+            ('damaged', 'Damaged'),
+            ('missing_pages', 'Missing Pages'),
+            ('other', 'Other'),
+        ],
+        blank=True,
+        null=True
+    )
+    return_notes = models.TextField(blank=True)
+    return_verified_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, 
+        related_name='return_verifications'
+    )
+    return_verified_at = models.DateTimeField(null=True, blank=True)
+    
+    # Track the version that was approved/handed over (for post-return access)
+    approved_version = models.ForeignKey(
+        'FileVersion', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='approved_requests',
+        help_text='The file version that was approved and handed over to the user'
+    )
     
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -197,6 +226,13 @@ class FileRequest(models.Model):
         self.processed_by = processed_by
         self.processed_at = timezone.now()
         self.registry_notes = notes
+        
+        # Capture the current file version as the approved version
+        # This is the version the user will be able to access after returning
+        current_version = self.file.versions.filter(file_attachment__isnull=False).order_by('-created_at').first()
+        if current_version:
+            self.approved_version = current_version
+        
         self.save()
         
         # Send in-app notification to user to confirm
@@ -223,6 +259,20 @@ class FileRequest(models.Model):
         self.user_confirmation_notes = notes
         self.save()
         
+        # Check out the file to the user (file was held in registry until user confirmed receipt)
+        self.file.check_out(
+            user=self.requesting_user,
+            department=self.requesting_department,
+            notes=f'User confirmed receipt. Request ID: {self.pk}'
+        )
+        
+        # Send email notification to user
+        try:
+            from register.emails import send_receipt_confirmation_notification
+            send_receipt_confirmation_notification(self)
+        except Exception as e:
+            print(f"Email notification failed: {e}")
+        
         # Send notification to registry
         if self.processed_by:
             Notification.objects.create(
@@ -231,8 +281,142 @@ class FileRequest(models.Model):
                 sender=self.requesting_user,
                 notification_type='user_confirmed',
                 title=f'User Confirmed Receipt - {self.file.reference}',
-                message=f'{self.requesting_user.get_full_name()} has confirmed receipt of file {self.file.reference}.'
+                message=f'{self.requesting_user.get_full_name()} has confirmed receipt of file {self.file.reference}. File is now checked out to the user.'
             )
+    
+    def initiate_return(self, notes=''):
+        """
+        User initiates return of the file.
+        This sends a notification to registry/admin to verify the return.
+        """
+        from django.contrib.auth.models import User
+        
+        self.status = 'pending_return'
+        self.user_confirmation_notes = notes
+        self.save()
+        
+        # Notify all registry and admin users
+        registry_users = User.objects.filter(
+            profile__role__in=['registry', 'admin']
+        ) | User.objects.filter(is_superuser=True)
+        
+        for user in registry_users.distinct():
+            Notification.objects.create(
+                file=self.file,
+                recipient=user,
+                sender=self.requesting_user,
+                notification_type='return_pending',
+                title=f'File Return Pending Verification - {self.file.reference}',
+                message=f'{self.requesting_user.get_full_name()} wants to return file {self.file.reference}. ' +
+                        'Please verify the file condition and confirm the return.',
+            )
+        
+        # Send email to registry
+        try:
+            from register.emails import send_return_pending_notification
+            send_return_pending_notification(self)
+        except Exception as e:
+            print(f"Email notification failed: {e}")
+    
+    def verify_return(self, verified_by, condition='good', notes=''):
+        """
+        Registry/Admin verifies the return of the file.
+        This marks the file as returned and updates the file status.
+        """
+        from django.contrib.auth.models import User
+        
+        self.status = 'returned_verified'
+        self.return_condition = condition
+        self.return_notes = notes
+        self.return_verified_by = verified_by
+        self.return_verified_at = timezone.now()
+        self.save()
+        
+        # Update the file status back to registry
+        self.file.status = 'in_registry'
+        self.file.current_holder = None
+        self.file.save()
+        
+        # Log the activity
+        from register.models import ActivityLog
+        ActivityLog.objects.create(
+            user=verified_by,
+            action='file_return_verified',
+            description=f'Returned and verified file: {self.file.reference}. Condition: {condition}',
+        )
+        
+        # Notify the user who returned the file
+        Notification.objects.create(
+            file=self.file,
+            recipient=self.requesting_user,
+            sender=verified_by,
+            notification_type='return_verified',
+            title=f'File Return Verified - {self.file.reference}',
+            message=f'Your return of file {self.file.reference} has been verified by registry. ' +
+                    f'Condition: {condition.replace("_", " ").title()}. ' +
+                    (f'Notes: {notes}' if notes else 'Thank you for returning the file.')
+        )
+        
+        # Send email notification
+        try:
+            from register.emails import send_return_verified_notification
+            send_return_verified_notification(self)
+        except Exception as e:
+            print(f"Email notification failed: {e}")
+    
+    def reject_return(self, rejected_by, reason=''):
+        """
+        Registry/Admin rejects the return (e.g., file is damaged).
+        """
+        self.status = 'return_rejected'
+        self.return_notes = reason
+        self.return_verified_by = rejected_by
+        self.return_verified_at = timezone.now()
+        self.save()
+        
+        # Notify the user
+        Notification.objects.create(
+            file=self.file,
+            recipient=self.requesting_user,
+            sender=rejected_by,
+            notification_type='return_rejected',
+            title=f'File Return Rejected - {self.file.reference}',
+            message=f'Your return of file {self.file.reference} has been rejected. ' +
+                    f'Reason: {reason}. Please contact registry for more information.'
+        )
+
+    def resubmit_return(self, notes=''):
+        """
+        User re-submits a return after their previous return was rejected.
+        This puts the request back to 'pending_return' status so admin can verify the new document.
+        """
+        if self.status != 'return_rejected':
+            return False
+        
+        self.status = 'pending_return'
+        self.return_notes = notes
+        self.return_verified_by = None
+        self.return_verified_at = None
+        self.save()
+        
+        # Notify registry
+        from django.contrib.auth.models import User
+        registry_users = User.objects.filter(
+            profile__role__in=['registry', 'admin']
+        ) | User.objects.filter(is_superuser=True)
+        
+        for user in registry_users.distinct():
+            Notification.objects.create(
+                file=self.file,
+                recipient=user,
+                sender=self.requesting_user,
+                notification_type='return_resubmitted',
+                title=f'File Return Re-submitted - {self.file.reference}',
+                message=f'{self.requesting_user.get_full_name()} has re-submitted the return of file {self.file.reference}. ' +
+                        'Please verify the new document.'
+            )
+        
+        return True
 
 
 class File(models.Model):

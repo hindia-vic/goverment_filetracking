@@ -7,6 +7,16 @@
     <div class="col-md-8">
         <h2><i class="bi bi-bell me-2"></i>Notifications</h2>
     </div>
+    <div class="col-md-4 text-end">
+        {% if notifications %}
+        <form method="post" action="{% url 'notification_clear_all' %}" class="d-inline" onsubmit="return confirm('Are you sure you want to delete all notifications?');">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-outline-danger btn-sm">
+                <i class="bi bi-trash me-1"></i>Clear All
+            </button>
+        </form>
+        {% endif %}
+    </div>
 </div>
 
 <div class="card border-0 shadow-sm">
@@ -14,34 +24,41 @@
         {% if notifications %}
         <div class="list-group list-group-flush">
             {% for notification in notifications %}
-            <a href="{% url 'notification_detail' notification.pk %}" 
-               class="list-group-item list-group-item-action {% if notification.status == 'pending' %}bg-light{% endif %}">
+            <div class="list-group-item list-group-item-action {% if notification.status == 'pending' %}bg-light{% endif %}">
                 <div class="d-flex justify-content-between align-items-start">
                     <div class="flex-grow-1">
-                        <div class="d-flex align-items-center mb-1">
-                            <span class="badge 
-                                {% if notification.notification_type == 'checkout_request' %}bg-warning
-                                {% elif notification.notification_type == 'ready_for_pickup' %}bg-success
-                                {% elif notification.notification_type == 'file_handed' %}bg-info
-                                {% elif notification.notification_type == 'user_confirmed' %}bg-primary
-                                {% elif notification.notification_type == 'checkout_approved' %}bg-success{% else %}bg-secondary{% endif %} me-2">
-                                {{ notification.get_notification_type_display }}
-                            </span>
-                            {% if notification.status == 'pending' %}
-                            <span class="badge bg-danger">New</span>
-                            {% endif %}
-                        </div>
-                        <h6 class="mb-1">{{ notification.title }}</h6>
-                        <p class="text-muted mb-0 small">{{ notification.message|truncatechars:100 }}</p>
+                        <a href="{% url 'notification_detail' notification.pk %}" class="text-decoration-none text-dark">
+                            <div class="d-flex align-items-center mb-1">
+                                <span class="badge 
+                                    {% if notification.notification_type == 'checkout_request' %}bg-warning
+                                    {% elif notification.notification_type == 'ready_for_pickup' %}bg-success
+                                    {% elif notification.notification_type == 'file_handed' %}bg-info
+                                    {% elif notification.notification_type == 'user_confirmed' %}bg-primary
+                                    {% elif notification.notification_type == 'checkout_approved' %}bg-success{% else %}bg-secondary{% endif %} me-2">
+                                    {{ notification.get_notification_type_display }}
+                                </span>
+                                {% if notification.status == 'pending' %}
+                                <span class="badge bg-danger">New</span>
+                                {% endif %}
+                            </div>
+                            <h6 class="mb-1">{{ notification.title }}</h6>
+                            <p class="text-muted mb-0 small">{{ notification.message|truncatechars:100 }}</p>
+                        </a>
                     </div>
-                    <div class="text-end ms-3">
+                    <div class="d-flex flex-column align-items-end">
                         <small class="text-muted d-block">{{ notification.created_at|timesince }} ago</small>
                         {% if notification.file %}
                         <small class="text-primary">{{ notification.file.reference }}</small>
                         {% endif %}
+                        <form method="post" action="{% url 'notification_delete' notification.pk %}" class="mt-2" onsubmit="return confirm('Delete this notification?');">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-sm btn-outline-danger">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </form>
                     </div>
                 </div>
-            </a>
+            </div>
             {% endfor %}
         </div>
         

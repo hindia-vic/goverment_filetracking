@@ -165,6 +165,40 @@ class NotificationDetailView(LoginRequiredMixin, View):
         return redirect('file_detail', uuid=notification.file.uuid)
 
 
+class NotificationMarkAllReadView(LoginRequiredMixin, View):
+    """Mark all notifications as read"""
+    
+    def post(self, request):
+        Notification.objects.filter(
+            recipient=request.user,
+            status='pending'
+        ).update(status='read')
+        
+        messages.success(request, 'All notifications marked as read.')
+        return redirect('notification_list')
+
+
+class NotificationClearView(LoginRequiredMixin, View):
+    """Delete a single notification"""
+    
+    def post(self, request, pk):
+        notification = get_object_or_404(Notification, pk=pk, recipient=request.user)
+        notification.delete()
+        
+        messages.success(request, 'Notification deleted.')
+        return redirect('notification_list')
+
+
+class NotificationClearAllView(LoginRequiredMixin, View):
+    """Delete all notifications for the user"""
+    
+    def post(self, request):
+        Notification.objects.filter(recipient=request.user).delete()
+        
+        messages.success(request, 'All notifications cleared.')
+        return redirect('notification_list')
+
+
 class FileRequestCreateView(LoginRequiredMixin, View):
     """User requests to checkout a file"""
     template_name = 'register/file_request.html'
@@ -194,6 +228,24 @@ class FileRequestCreateView(LoginRequiredMixin, View):
     def post(self, request, uuid):
         file = get_object_or_404(File, uuid=uuid)
         form = FileRequestForm(request.POST)
+        
+        # Check if user's profile is active
+        user_is_active = True
+        try:
+            if hasattr(request.user, 'profile') and request.user.profile:
+                user_is_active = request.user.profile.is_active
+            else:
+                # Check UserProfile model directly
+                profile = UserProfile.objects.get(user=request.user)
+                user_is_active = profile.is_active
+        except UserProfile.DoesNotExist:
+            user_is_active = False
+        except Exception:
+            user_is_active = True
+        
+        if not user_is_active:
+            messages.error(request, 'Your account is inactive. You cannot request files. Please contact the administrator.')
+            return redirect('file_detail', uuid=uuid)
         
         if form.is_valid():
             # Create the file request
@@ -229,24 +281,41 @@ class FileRequestListView(LoginRequiredMixin, View):
     
     def get(self, request):
         # Only registry and admin can view all requests
-        if not (request.user.is_superuser or (hasattr(request.user, 'profile') and request.user.profile.role in ['registry', 'admin'])):
+        user_is_admin_or_registry = False
+        if request.user.is_superuser:
+            user_is_admin_or_registry = True
+        elif hasattr(request.user, 'profile') and request.user.profile.role in ['registry', 'admin']:
+            user_is_admin_or_registry = True
+            
+        if not user_is_admin_or_registry:
             # Department users only see their own requests
             requests = FileRequest.objects.filter(
                 requesting_user=request.user
             ).select_related('file', 'requesting_user', 'requesting_department', 'processed_by')
             pending_count = 0
+            return_count = 0
         else:
             # Registry and admin see all pending requests
             status_filter = request.GET.get('status', 'pending')
-            requests = FileRequest.objects.filter(
-                status=status_filter
-            ).select_related('file', 'requesting_user', 'requesting_department', 'processed_by')
+            
+            # Allow filtering by pending_return status too
+            if status_filter == 'pending_return':
+                requests = FileRequest.objects.filter(
+                    status='pending_return'
+                ).select_related('file', 'requesting_user', 'requesting_department', 'processed_by')
+            else:
+                requests = FileRequest.objects.filter(
+                    status=status_filter
+                ).select_related('file', 'requesting_user', 'requesting_department', 'processed_by')
+            
             pending_count = FileRequest.objects.filter(status='pending').count()
+            return_count = FileRequest.objects.filter(status='pending_return').count()
         
         return render(request, self.template_name, {
             'requests': requests,
             'current_status': request.GET.get('status', 'pending'),
-            'pending_count': pending_count
+            'pending_count': pending_count,
+            'return_count': return_count if 'return_count' in locals() else 0
         })
 
 
@@ -255,7 +324,14 @@ class FileRequestProcessView(LoginRequiredMixin, View):
     template_name = 'register/request_process.html'
     
     def get(self, request, pk):
-        file_request = get_object_or_404(FileRequest, pk=pk, status='pending')
+        try:
+            file_request = FileRequest.objects.get(pk=pk, status='pending')
+        except FileRequest.DoesNotExist:
+            if FileRequest.objects.filter(pk=pk).exists():
+                messages.error(request, 'This request has already been processed.')
+            else:
+                messages.error(request, 'File request not found.')
+            return redirect('request_list')
         
         # Check permission
         if not (request.user.is_superuser or (hasattr(request.user, 'profile') and request.user.profile.role in ['registry', 'admin'])):
@@ -266,7 +342,15 @@ class FileRequestProcessView(LoginRequiredMixin, View):
         return render(request, self.template_name, {'file_request': file_request, 'form': form})
     
     def post(self, request, pk):
-        file_request = get_object_or_404(FileRequest, pk=pk, status='pending')
+        try:
+            file_request = FileRequest.objects.get(pk=pk, status='pending')
+        except FileRequest.DoesNotExist:
+            if FileRequest.objects.filter(pk=pk).exists():
+                messages.error(request, 'This request has already been processed.')
+            else:
+                messages.error(request, 'File request not found.')
+            return redirect('request_list')
+        
         form = FileRequestApprovalForm(request.POST)
         
         if form.is_valid():
@@ -298,7 +382,14 @@ class FileRequestHandoverView(LoginRequiredMixin, View):
     template_name = 'register/request_handover.html'
     
     def get(self, request, pk):
-        file_request = get_object_or_404(FileRequest, pk=pk, status='ready_for_pickup')
+        try:
+            file_request = FileRequest.objects.get(pk=pk, status='ready_for_pickup')
+        except FileRequest.DoesNotExist:
+            if FileRequest.objects.filter(pk=pk).exists():
+                messages.error(request, 'This request cannot be processed for handover. It may have already been processed.')
+            else:
+                messages.error(request, 'File request not found.')
+            return redirect('request_list')
         
         # Check permission
         if not (request.user.is_superuser or (hasattr(request.user, 'profile') and request.user.profile.role in ['registry', 'admin'])):
@@ -309,7 +400,15 @@ class FileRequestHandoverView(LoginRequiredMixin, View):
         return render(request, self.template_name, {'file_request': file_request, 'form': form})
     
     def post(self, request, pk):
-        file_request = get_object_or_404(FileRequest, pk=pk, status='ready_for_pickup')
+        try:
+            file_request = FileRequest.objects.get(pk=pk, status='ready_for_pickup')
+        except FileRequest.DoesNotExist:
+            if FileRequest.objects.filter(pk=pk).exists():
+                messages.error(request, 'This request cannot be processed for handover. It may have already been processed.')
+            else:
+                messages.error(request, 'File request not found.')
+            return redirect('request_list')
+        
         form = FileHandoverForm(request.POST)
         
         if form.is_valid():
@@ -320,13 +419,7 @@ class FileRequestHandoverView(LoginRequiredMixin, View):
                 messages.error(request, 'Invalid confirmation code.')
                 return render(request, self.template_name, {'file_request': file_request, 'form': form})
             
-            # Update file status and create movement
-            file_request.file.check_out(
-                user=file_request.requesting_user,
-                department=file_request.requesting_department,
-                notes=f"Handover confirmed. Registry: {request.user.get_full_name()}"
-            )
-            
+            # Mark as handed over - file stays in registry until user confirms receipt
             file_request.mark_handed_over(
                 processed_by=request.user,
                 notes=form.cleaned_data.get('notes', '')
@@ -343,12 +436,28 @@ class FileRequestConfirmView(LoginRequiredMixin, View):
     template_name = 'register/request_confirm.html'
     
     def get(self, request, pk):
-        file_request = get_object_or_404(FileRequest, pk=pk, requesting_user=request.user, status='handed_over')
+        try:
+            file_request = FileRequest.objects.get(pk=pk, requesting_user=request.user, status='handed_over')
+        except FileRequest.DoesNotExist:
+            if FileRequest.objects.filter(pk=pk, requesting_user=request.user).exists():
+                messages.error(request, 'This request cannot be confirmed. It may have already been processed.')
+            else:
+                messages.error(request, 'File request not found.')
+            return redirect('dashboard')
+        
         form = UserConfirmationForm()
         return render(request, self.template_name, {'file_request': file_request, 'form': form})
     
     def post(self, request, pk):
-        file_request = get_object_or_404(FileRequest, pk=pk, requesting_user=request.user, status='handed_over')
+        try:
+            file_request = FileRequest.objects.get(pk=pk, requesting_user=request.user, status='handed_over')
+        except FileRequest.DoesNotExist:
+            if FileRequest.objects.filter(pk=pk, requesting_user=request.user).exists():
+                messages.error(request, 'This request cannot be confirmed. It may have already been processed.')
+            else:
+                messages.error(request, 'File request not found.')
+            return redirect('dashboard')
+        
         form = UserConfirmationForm(request.POST)
         
         if form.is_valid():
@@ -365,6 +474,338 @@ class FileRequestConfirmView(LoginRequiredMixin, View):
             return redirect('file_detail', uuid=file_request.file.uuid)
         
         return render(request, self.template_name, {'file_request': file_request, 'form': form})
+
+
+class FileReturnInitiateView(LoginRequiredMixin, View):
+    """User initiates return of a file - notifies registry to verify"""
+    template_name = 'register/request_return.html'
+    
+    def get(self, request, pk):
+        file_request = get_object_or_404(
+            FileRequest, 
+            pk=pk, 
+            requesting_user=request.user, 
+            status__in=['handed_over', 'confirmed']
+        )
+        
+        # Check if file has an attachment - if so, user must upload during return
+        file = file_request.file
+        has_attachment = file.file_attachment or file.versions.filter(file_attachment__isnull=False).exists()
+        
+        return render(request, self.template_name, {
+            'file_request': file_request,
+            'has_attachment': has_attachment
+        })
+    
+    def post(self, request, pk):
+        file_request = get_object_or_404(
+            FileRequest, 
+            pk=pk, 
+            requesting_user=request.user, 
+            status__in=['handed_over', 'confirmed']
+        )
+        
+        file = file_request.file
+        
+        # Check if file has an attachment - if so, user must upload during return
+        has_attachment = file.file_attachment or file.versions.filter(file_attachment__isnull=False).exists()
+        
+        notes = request.POST.get('notes', '')
+        uploaded_file = request.FILES.get('file_attachment')
+        
+        # If file has attachment, require upload
+        if has_attachment and not uploaded_file:
+            messages.error(request, 'This file has a document attachment. You must upload the document when returning the file.')
+            return render(request, self.template_name, {
+                'file_request': file_request,
+                'has_attachment': has_attachment
+            })
+        
+        # If file is uploaded, create a new version
+        if uploaded_file:
+            # Create new version with the uploaded file
+            version = file.create_version(
+                user=request.user,
+                change_type='return',
+                notes=notes,
+                file_attachment=uploaded_file
+            )
+            # Update the main file attachment
+            file.file_attachment = uploaded_file
+            file.original_filename = uploaded_file.name
+            file.save()
+        
+        # Initiate return - this will notify registry
+        file_request.initiate_return(notes=notes)
+        
+        messages.success(
+            request, 
+            'Your return request has been submitted. Registry will verify the file condition and confirm the return.'
+        )
+        return redirect('file_detail', uuid=file.uuid)
+
+
+class FileReturnResubmitView(LoginRequiredMixin, View):
+    """User resubmits a return after their previous return was rejected"""
+    template_name = 'register/request_return_resubmit.html'
+    
+    def get(self, request, pk):
+        file_request = get_object_or_404(
+            FileRequest, 
+            pk=pk, 
+            requesting_user=request.user, 
+            status='return_rejected'
+        )
+        
+        file = file_request.file
+        
+        # Get the latest version that was uploaded (the rejected one)
+        latest_version = file.versions.filter(file_attachment__isnull=False).order_by('-created_at').first()
+        
+        return render(request, self.template_name, {
+            'file_request': file_request,
+            'file': file,
+            'latest_version': latest_version
+        })
+    
+    def post(self, request, pk):
+        file_request = get_object_or_404(
+            FileRequest, 
+            pk=pk, 
+            requesting_user=request.user, 
+            status='return_rejected'
+        )
+        
+        file = file_request.file
+        uploaded_file = request.FILES.get('file_attachment')
+        notes = request.POST.get('notes', '')
+        
+        # If file has attachment, require upload
+        has_attachment = file.file_attachment or file.versions.filter(file_attachment__isnull=False).exists()
+        
+        if has_attachment and not uploaded_file:
+            messages.error(request, 'You must upload a new document when resubmitting the return.')
+            return redirect('file_return_resubmit', pk=pk)
+        
+        # If new file is uploaded, create a new version
+        if uploaded_file:
+            version = file.create_version(
+                user=request.user,
+                change_type='return',
+                notes=notes,
+                file_attachment=uploaded_file
+            )
+            # Update the main file attachment
+            file.file_attachment = uploaded_file
+            file.original_filename = uploaded_file.name
+            file.save()
+        
+        # Re-submit the return
+        file_request.resubmit_return(notes=notes)
+        
+        messages.success(
+            request, 
+            'Your return has been re-submitted. Registry will verify the new document.'
+        )
+        return redirect('file_detail', uuid=file.uuid)
+
+
+class FileReturnVerifyView(LoginRequiredMixin, View):
+    """Registry/Admin verifies a file return"""
+    template_name = 'register/request_verify_return.html'
+    
+    def get(self, request, pk):
+        # Only registry/admin can verify returns
+        if not (request.user.is_superuser or 
+                (hasattr(request.user, 'profile') and 
+                 request.user.profile.role in ['registry', 'admin'])):
+            messages.error(request, 'You do not have permission to verify returns.')
+            return redirect('dashboard')
+        
+        try:
+            file_request = FileRequest.objects.get(pk=pk, status='pending_return')
+        except FileRequest.DoesNotExist:
+            # Check if the request exists at all
+            if FileRequest.objects.filter(pk=pk).exists():
+                messages.error(request, 'This request cannot be verified for return. It may have already been processed.')
+            else:
+                messages.error(request, 'File request not found.')
+            return redirect('request_list')
+        except FileRequest.MultipleObjectsReturned:
+            messages.error(request, 'An error occurred. Multiple requests found.')
+            return redirect('request_list')
+        
+        # Check if there's a new version with attachment
+        latest_version = file_request.file.versions.filter(file_attachment__isnull=False).order_by('-created_at').first()
+        
+        # Get QR scan result if attachment exists
+        qr_result = None
+        if latest_version and latest_version.file_attachment:
+            try:
+                from register.watermark import scan_pdf_for_qr_code
+                expected_qr_data = str(file_request.file.uuid)
+                qr_result = scan_pdf_for_qr_code(
+                    latest_version.file_attachment.path,
+                    expected_qr_data
+                )
+                # Add the expected UUID to the result for display
+                qr_result['expected_uuid'] = expected_qr_data
+            except Exception as e:
+                qr_result = {
+                    'found': False,
+                    'matched': False,
+                    'qr_data': None,
+                    'message': f'Error scanning PDF: {str(e)}',
+                    'expected_uuid': str(file_request.file.uuid),
+                    'error': str(e)
+                }
+        
+        # Check if file has any attachment
+        has_attachment = file_request.file.file_attachment or file_request.file.versions.filter(file_attachment__isnull=False).exists()
+        
+        return render(request, self.template_name, {
+            'file_request': file_request,
+            'latest_version': latest_version,
+            'qr_result': qr_result,
+            'has_attachment': has_attachment
+        })
+    
+    def post(self, request, pk):
+        # Only registry/admin can verify returns
+        if not (request.user.is_superuser or 
+                (hasattr(request.user, 'profile') and 
+                 request.user.profile.role in ['registry', 'admin'])):
+            messages.error(request, 'You do not have permission to verify returns.')
+            return redirect('dashboard')
+        
+        try:
+            file_request = FileRequest.objects.get(pk=pk, status='pending_return')
+        except FileRequest.DoesNotExist:
+            if FileRequest.objects.filter(pk=pk).exists():
+                messages.error(request, 'This request cannot be verified for return. It may have already been processed.')
+            else:
+                messages.error(request, 'File request not found.')
+            return redirect('request_list')
+        except FileRequest.MultipleObjectsReturned:
+            messages.error(request, 'An error occurred. Multiple requests found.')
+            return redirect('request_list')
+        
+        condition = request.POST.get('condition', 'good')
+        notes = request.POST.get('notes', '')
+        
+        # Check if there's a new version with attachment
+        latest_version = file_request.file.versions.filter(file_attachment__isnull=False).order_by('-created_at').first()
+        
+        # If there's a new attachment, scan it for QR code
+        qr_result = None
+        if latest_version and latest_version.file_attachment:
+            try:
+                # Import the QR scanning function
+                from register.watermark import scan_pdf_for_qr_code
+                
+                # Get expected QR data (file's UUID and reference)
+                expected_qr_data = str(file_request.file.uuid)
+                
+                # Scan the uploaded PDF for QR code
+                qr_result = scan_pdf_for_qr_code(
+                    latest_version.file_attachment.path,
+                    expected_qr_data
+                )
+                
+                # Check if admin wants to force verify despite QR mismatch
+                force_verify = request.POST.get('force_verify') == 'on'
+                
+                # Store QR scan result in notes
+                qr_note = f"\n[QR Scan Result: {qr_result['message']}]"
+                
+                if not qr_result['found']:
+                    # No QR code found - could still be valid but warn
+                    if not force_verify:
+                        notes += qr_note + " WARNING: No QR code found in uploaded document."
+                    else:
+                        notes += qr_note + " Admin forced verification despite no QR code."
+                elif not qr_result['matched']:
+                    # QR code found but doesn't match
+                    if not force_verify:
+                        # Don't auto-reject, just warn and let admin choose
+                        notes += qr_note + " WARNING: QR code does not match. "
+                        messages.warning(request, f'Warning: QR code mismatch! Use "Force Verify" to verify anyway. {qr_result["message"]}')
+                    else:
+                        notes += qr_note + " Admin forced verification despite QR mismatch."
+                else:
+                    # QR code matched
+                    notes += qr_note + " QR Code verified successfully."
+                    
+            except Exception as e:
+                # Error during QR scanning - log it and warn but allow verification
+                import traceback
+                error_msg = f"Error scanning QR: {str(e)}"
+                print(traceback.format_exc())
+                notes += f"\n[QR Scan Error: {error_msg}]"
+                messages.warning(request, f'QR scanning failed: {str(e)}. Please verify document manually.')
+        
+        # Verify the return
+        file_request.verify_return(
+            verified_by=request.user,
+            condition=condition,
+            notes=notes
+        )
+        
+        messages.success(request, f'File return verified! File {file_request.file.reference} is now back in registry.')
+        return redirect('request_list')
+
+
+class FileReturnRejectView(LoginRequiredMixin, View):
+    """Registry/Admin rejects a file return (e.g., file is damaged)"""
+    template_name = 'register/request_reject_return.html'
+    
+    def get(self, request, pk):
+        # Only registry/admin can reject returns
+        if not (request.user.is_superuser or 
+                (hasattr(request.user, 'profile') and 
+                 request.user.profile.role in ['registry', 'admin'])):
+            messages.error(request, 'You do not have permission to reject returns.')
+            return redirect('dashboard')
+        
+        try:
+            file_request = FileRequest.objects.get(pk=pk, status='pending_return')
+        except FileRequest.DoesNotExist:
+            if FileRequest.objects.filter(pk=pk).exists():
+                messages.error(request, 'This request cannot be rejected. It may have already been processed.')
+            else:
+                messages.error(request, 'File request not found.')
+            return redirect('request_list')
+        
+        return render(request, self.template_name, {'file_request': file_request})
+    
+    def post(self, request, pk):
+        # Only registry/admin can reject returns
+        if not (request.user.is_superuser or 
+                (hasattr(request.user, 'profile') and 
+                 request.user.profile.role in ['registry', 'admin'])):
+            messages.error(request, 'You do not have permission to reject returns.')
+            return redirect('dashboard')
+        
+        try:
+            file_request = FileRequest.objects.get(pk=pk, status='pending_return')
+        except FileRequest.DoesNotExist:
+            if FileRequest.objects.filter(pk=pk).exists():
+                messages.error(request, 'This request cannot be rejected. It may have already been processed.')
+            else:
+                messages.error(request, 'File request not found.')
+            return redirect('request_list')
+        
+        reason = request.POST.get('reason', '')
+        
+        if not reason:
+            messages.error(request, 'Please provide a reason for rejecting the return.')
+            return render(request, self.template_name, {'file_request': file_request})
+        
+        # Reject the return
+        file_request.reject_return(rejected_by=request.user, reason=reason)
+        
+        messages.warning(request, f'File return rejected. User has been notified.')
+        return redirect('request_list')
 
 
 class FileListView(LoginRequiredMixin, ListView):
@@ -421,7 +862,7 @@ class FileDetailView(LoginRequiredMixin, DetailView):
         if self.request.user.is_authenticated:
             active_request = self.object.checkout_requests.filter(
                 requesting_user=self.request.user,
-                status__in=['pending', 'approved', 'ready_for_pickup', 'handed_over']
+                status__in=['pending', 'approved', 'ready_for_pickup', 'handed_over', 'confirmed', 'pending_return', 'return_rejected', 'returned_verified']
             ).first()
             context['active_request'] = active_request
         
@@ -531,16 +972,33 @@ class CheckinView(LoginRequiredMixin, View):
             messages.error(request, 'File is not currently checked out.')
             return redirect('file_detail', uuid=uuid)
         
+        # Check if file has attachment - if so, upload is required
+        has_attachment = file.file_attachment or file.versions.filter(file_attachment__isnull=False).exists()
+        
         form = CheckinForm()
         return render(request, self.template_name, {
             'file': file,
             'form': form,
-            'days_out': (timezone.now() - file.checked_out_at).days if file.checked_out_at else 0
+            'days_out': (timezone.now() - file.checked_out_at).days if file.checked_out_at else 0,
+            'has_attachment': has_attachment
         })
     
     def post(self, request, uuid):
         file = get_object_or_404(File, uuid=uuid)
-        form = CheckinForm(request.POST)
+        form = CheckinForm(request.POST, request.FILES)
+        
+        # Check if file has attachment - if so, upload is required
+        has_attachment = file.file_attachment or file.versions.filter(file_attachment__isnull=False).exists()
+        uploaded_file = request.FILES.get('file_attachment')
+        
+        if has_attachment and not uploaded_file:
+            messages.error(request, 'This file has a document attachment. You must upload the document when returning the file.')
+            return render(request, self.template_name, {
+                'file': file,
+                'form': form,
+                'days_out': (timezone.now() - file.checked_out_at).days if file.checked_out_at else 0,
+                'has_attachment': has_attachment
+            })
         
         if form.is_valid():
             confirmation = form.cleaned_data['signature_confirmation']
@@ -559,15 +1017,45 @@ class CheckinView(LoginRequiredMixin, View):
                 signed_at=timezone.now()
             )
             
-            file.check_in(user=request.user, notes=form.cleaned_data['notes'])
+            # If file is uploaded, create a new version
+            if uploaded_file:
+                version = file.create_version(
+                    user=request.user,
+                    change_type='return',
+                    notes=form.cleaned_data.get('notes', ''),
+                    file_attachment=uploaded_file
+                )
+                # Update the main file attachment
+                file.file_attachment = uploaded_file
+                file.original_filename = uploaded_file.name
+                file.save()
             
-            messages.success(request, f'File {file.reference} returned to registry.')
-            return redirect('file_detail', uuid=uuid)
+            # Check if there's an active request that has been confirmed (user has the file)
+            # Status must be 'confirmed' meaning user already confirmed receipt and now wants to return
+            from register.models import FileRequest
+            active_request = FileRequest.objects.filter(
+                file=file,
+                requesting_user=request.user,
+                status='confirmed'  # Only for confirmed requests - user already has the file
+            ).first()
+            
+            if active_request:
+                # Use the proper return flow with admin verification
+                active_request.initiate_return(notes=form.cleaned_data.get('notes', ''))
+                messages.success(request, f'File {file.reference} return submitted for verification. Registry will confirm the return.')
+                return redirect('file_detail', uuid=uuid)
+            else:
+                # No active confirmed request - direct check-in
+                # This handles cases where file was checked out directly without a request
+                file.check_in(user=request.user, notes=form.cleaned_data['notes'])
+                messages.success(request, f'File {file.reference} returned to registry.')
+                return redirect('file_detail', uuid=uuid)
         
         return render(request, self.template_name, {
             'file': file,
             'form': form,
-            'days_out': (timezone.now() - file.checked_out_at).days if file.checked_out_at else 0
+            'days_out': (timezone.now() - file.checked_out_at).days if file.checked_out_at else 0,
+            'has_attachment': has_attachment
         })
 
 
@@ -745,9 +1233,30 @@ class DashboardView(LoginRequiredMixin, View):
         
         # Pending requests for registry/admin
         pending_approvals = []
-        if hasattr(user, 'profile') and user.profile.role in ['registry', 'admin']:
+        ready_for_pickup = []
+        pending_returns = []
+        is_registry_or_admin = False
+        
+        # Check if user is admin or registry
+        if user.is_superuser:
+            is_registry_or_admin = True
+        elif hasattr(user, 'profile') and user.profile.role in ['registry', 'admin']:
+            is_registry_or_admin = True
+        
+        if is_registry_or_admin:
+            # Show all requests that need admin/registry action
             pending_approvals = FileRequest.objects.filter(
                 status='pending'
+            ).select_related('file', 'requesting_user', 'requesting_department')[:5]
+            
+            # Also show ready_for_pickup requests that need handover
+            ready_for_pickup = FileRequest.objects.filter(
+                status='ready_for_pickup'
+            ).select_related('file', 'requesting_user', 'requesting_department')[:5]
+            
+            # Also show pending_return requests that need verification
+            pending_returns = FileRequest.objects.filter(
+                status='pending_return'
             ).select_related('file', 'requesting_user', 'requesting_department')[:5]
         
         context = {
@@ -763,6 +1272,8 @@ class DashboardView(LoginRequiredMixin, View):
             'my_checked_out': my_checked_out,
             'my_requests': my_requests,
             'pending_approvals': pending_approvals,
+            'ready_for_pickup': ready_for_pickup,
+            'pending_returns': pending_returns,
             'total_departments': Department.objects.filter(is_active=True).count(),
             'archived_files': File.objects.filter(status='archived').count(),
         }
@@ -937,21 +1448,37 @@ class FileVersionHistoryView(LoginRequiredMixin, View):
 
 
 class TagListView(LoginRequiredMixin, ListView):
-    """List all tags (admin only)"""
+    """List all tags (admin/registry only)"""
     model = FileTag
     template_name = 'register/tag_list.html'
     context_object_name = 'tags'
+    
+    def dispatch(self, request, *args, **kwargs):
+        if not (request.user.is_superuser or 
+                (hasattr(request.user, 'profile') and 
+                 request.user.profile.role in ['registry', 'admin'])):
+            messages.error(request, 'You do not have permission to manage tags.')
+            return redirect('dashboard')
+        return super().dispatch(request, *args, **kwargs)
     
     def get_queryset(self):
         return FileTag.objects.annotate(file_count=Count('files'))
 
 
 class TagCreateView(LoginRequiredMixin, CreateView):
-    """Create new tag (admin only)"""
+    """Create new tag (admin/registry only)"""
     model = FileTag
     form_class = FileTagForm
     template_name = 'register/tag_form.html'
     success_url = reverse_lazy('tag_list')
+    
+    def dispatch(self, request, *args, **kwargs):
+        if not (request.user.is_superuser or 
+                (hasattr(request.user, 'profile') and 
+                 request.user.profile.role in ['registry', 'admin'])):
+            messages.error(request, 'You do not have permission to create tags.')
+            return redirect('dashboard')
+        return super().dispatch(request, *args, **kwargs)
     
     def form_valid(self, form):
         form.instance.created_by = self.request.user
@@ -960,11 +1487,19 @@ class TagCreateView(LoginRequiredMixin, CreateView):
 
 
 class TagUpdateView(LoginRequiredMixin, UpdateView):
-    """Update tag (admin only)"""
+    """Update tag (admin/registry only)"""
     model = FileTag
     form_class = FileTagForm
     template_name = 'register/tag_form.html'
     success_url = reverse_lazy('tag_list')
+    
+    def dispatch(self, request, *args, **kwargs):
+        if not (request.user.is_superuser or 
+                (hasattr(request.user, 'profile') and 
+                 request.user.profile.role in ['registry', 'admin'])):
+            messages.error(request, 'You do not have permission to edit tags.')
+            return redirect('dashboard')
+        return super().dispatch(request, *args, **kwargs)
     
     def form_valid(self, form):
         messages.success(self.request, 'Tag updated successfully!')
@@ -972,10 +1507,18 @@ class TagUpdateView(LoginRequiredMixin, UpdateView):
 
 
 class TagDeleteView(LoginRequiredMixin, DeleteView):
-    """Delete tag (admin only)"""
+    """Delete tag (admin/registry only)"""
     model = FileTag
     template_name = 'register/tag_confirm_delete.html'
     success_url = reverse_lazy('tag_list')
+    
+    def dispatch(self, request, *args, **kwargs):
+        if not (request.user.is_superuser or 
+                (hasattr(request.user, 'profile') and 
+                 request.user.profile.role in ['registry', 'admin'])):
+            messages.error(request, 'You do not have permission to delete tags.')
+            return redirect('dashboard')
+        return super().dispatch(request, *args, **kwargs)
     
     def form_valid(self, form):
         messages.success(self.request, 'Tag deleted successfully!')
@@ -984,7 +1527,14 @@ class TagDeleteView(LoginRequiredMixin, DeleteView):
 
 @login_required
 def add_tag_to_file(request, uuid):
-    """Add a tag to a file"""
+    """Add a tag to a file - Admin/Registry only"""
+    # Check if user is admin or registry
+    if not (request.user.is_superuser or 
+            (hasattr(request.user, 'profile') and 
+             request.user.profile.role in ['registry', 'admin'])):
+        messages.error(request, 'You do not have permission to add tags to files.')
+        return redirect('file_detail', uuid=uuid)
+    
     file = get_object_or_404(File, uuid=uuid)
     
     if request.method == 'POST':
@@ -998,7 +1548,14 @@ def add_tag_to_file(request, uuid):
 
 @login_required
 def remove_tag_from_file(request, uuid):
-    """Remove a tag from a file"""
+    """Remove a tag from a file - Admin/Registry only"""
+    # Check if user is admin or registry
+    if not (request.user.is_superuser or 
+            (hasattr(request.user, 'profile') and 
+             request.user.profile.role in ['registry', 'admin'])):
+        messages.error(request, 'You do not have permission to remove tags from files.')
+        return redirect('file_detail', uuid=uuid)
+    
     file = get_object_or_404(File, uuid=uuid)
     
     if request.method == 'POST':
@@ -1053,10 +1610,44 @@ def file_return_upload(request, uuid):
         new_file = request.FILES.get('file_attachment')
         notes = request.POST.get('notes', '')
         changes_summary = request.POST.get('changes_summary', '')
+        employee_id = request.POST.get('employee_id', '').strip()
         
         if not new_file:
             messages.error(request, 'Please upload a document file.')
             return render(request, template_name, {'file': file, 'previous_version': previous_version})
+        
+        # Validate employee ID - must match current user's profile
+        if not employee_id:
+            messages.error(request, 'Please enter your Employee ID (Confirmation Number).')
+            return render(request, template_name, {'file': file, 'previous_version': previous_version})
+        
+        # Get user's profile employee_id
+        user_employee_id = None
+        try:
+            if hasattr(request.user, 'profile') and request.user.profile:
+                user_employee_id = request.user.profile.employee_id
+        except Exception:
+            pass
+        
+        # Also check User model directly
+        if not user_employee_id:
+            # Try to get from related profile model
+            from register.models import UserProfile
+            try:
+                profile = UserProfile.objects.get(user=request.user)
+                user_employee_id = profile.employee_id
+            except UserProfile.DoesNotExist:
+                pass
+        
+        # Validate that the entered employee_id matches the user's profile
+        if user_employee_id:
+            if employee_id != user_employee_id:
+                messages.error(request, f'Employee ID does not match your profile. Please enter your correct Employee ID.')
+                return render(request, template_name, {'file': file, 'previous_version': previous_version})
+        else:
+            # If user doesn't have an employee_id in profile, check if they have one registered
+            # For now, allow if they don't have employee_id set (backwards compatibility)
+            messages.warning(request, 'Note: Your profile does not have an Employee ID registered. Please contact registry to update your profile.')
         
         # Create new version
         version = file.create_version(
@@ -1084,9 +1675,27 @@ def file_return_upload(request, uuid):
         
         return redirect('file_versions', uuid=file.uuid)
     
+    # Get user's employee_id for display
+    user_employee_id = None
+    try:
+        if hasattr(request.user, 'profile') and request.user.profile:
+            user_employee_id = request.user.profile.employee_id
+    except Exception:
+        pass
+    
+    # Also check UserProfile model directly
+    if not user_employee_id:
+        from register.models import UserProfile
+        try:
+            profile = UserProfile.objects.get(user=request.user)
+            user_employee_id = profile.employee_id
+        except UserProfile.DoesNotExist:
+            pass
+    
     context = {
         'file': file,
         'previous_version': previous_version,
+        'user_employee_id': user_employee_id,
     }
     return render(request, template_name, context)
 
@@ -1147,10 +1756,11 @@ def my_accessible_files(request):
         }
     else:
         # Regular users see only their permitted files
-        # Files the user has been approved to access
+        # Files the user has been approved to access (including returned files)
+        # Include all statuses except pending, rejected, and cancelled
         approved_requests = FileRequest.objects.filter(
             requesting_user=user,
-            status__in=['approved', 'ready_for_pickup', 'handed_over', 'confirmed']
+            status__in=['approved', 'ready_for_pickup', 'handed_over', 'confirmed', 'returned_verified', 'pending_return', 'return_rejected']
         ).select_related('file', 'file__department')
         
         # Files checked out to this user
@@ -1199,18 +1809,37 @@ def file_download(request, uuid):
     
     # Check if user has permission to download
     has_permission = False
+    restricted_to_approved_version = False
+    approved_version = None
     
     # User is current holder
     if file.current_holder == request.user:
         has_permission = True
     
-    # User has approved request
+    # User has approved request (active - can get latest version)
     elif FileRequest.objects.filter(
         file=file,
         requesting_user=request.user,
-        status__in=['ready_for_pickup', 'handed_over', 'confirmed']
+        status__in=['ready_for_pickup', 'handed_over', 'confirmed', 'pending_return']
     ).exists():
         has_permission = True
+    
+    # User has returned the file - restrict to approved version only
+    elif FileRequest.objects.filter(
+        file=file,
+        requesting_user=request.user,
+        status__in=['returned_verified', 'return_rejected']
+    ).exists():
+        has_permission = True
+        restricted_to_approved_version = True
+        # Get the approved version for this request
+        file_request = FileRequest.objects.filter(
+            file=file,
+            requesting_user=request.user,
+            status__in=['returned_verified', 'return_rejected']
+        ).first()
+        if file_request and file_request.approved_version:
+            approved_version = file_request.approved_version
     
     # User is the creator
     elif file.created_by == request.user:
@@ -1234,7 +1863,11 @@ def file_download(request, uuid):
     
     # Determine which file to use and version info
     version = None
-    if not file.file_attachment:
+    
+    # If restricted to approved version, use that version
+    if restricted_to_approved_version and approved_version:
+        version = approved_version
+    elif not file.file_attachment:
         # Check if there's a version with attachment
         version = file.versions.filter(file_attachment__isnull=False).first()
         if not version:

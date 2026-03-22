@@ -12,204 +12,433 @@ from reportlab.lib.utils import ImageReader
 from django.conf import settings
 
 
-def create_qr_watermark(qr_code_path, file_info=None, position='top-right'):
+def scan_pdf_for_qr_code(pdf_path, expected_qr_data=None):
     """
-    Create a PDF page with QR code watermark
+    Scan a PDF file for QR codes and optionally verify they match expected data
     
     Args:
-        qr_code_path: Path to the QR code image
-        file_info: Optional dict with file info (reference, title, etc.)
-        position: Position of watermark ('top-right', 'top-left', 'bottom-right', 'bottom-left')
+        pdf_path: Path to the PDF file
+        expected_qr_data: Optional string to match against found QR codes
     
     Returns:
-        BytesIO: PDF page as bytes
+        dict: {
+            'found': bool,           # Whether any QR code was found
+            'matched': bool,         # Whether QR code matched expected data
+            'qr_data': str,          # The data from the QR code
+            'message': str           # Status message
+        }
     """
-    # QR code size on the PDF (in points)
-    qr_size = 80
+    import sys
     
-    # Create a small PDF with the QR code
-    packet = io.BytesIO()
-    can = canvas.Canvas(packet, pagesize=letter)
+    # Try PyMuPDF first (doesn't require Poppler), then fall back to pdf2image
+    pymupdf_available = False
+    pyzbar_available = False
+    opencv_available = False
     
-    # Get page width
-    page_width, page_height = letter
+    # Check if PyMuPDF is available
+    try:
+        import fitz  # PyMuPDF
+        pymupdf_available = True
+    except ImportError:
+        pass
     
-    # Calculate position
-    margin = 20
-    if position == 'top-right':
-        x = page_width - qr_size - margin
-        y = page_height - qr_size - margin
-    elif position == 'top-left':
-        x = margin
-        y = page_height - qr_size - margin
-    elif position == 'bottom-right':
-        x = page_width - qr_size - margin
-        y = margin
-    elif position == 'bottom-left':
-        x = margin
-        y = margin
-    else:  # default top-right
-        x = page_width - qr_size - margin
-        y = page_height - qr_size - margin
-    
-    # Draw QR code image
-    if qr_code_path and os.path.exists(qr_code_path):
+    # Check if pyzbar is available
+    if pymupdf_available:
         try:
-            # Open and resize the QR code image
-            qr_image = Image.open(qr_code_path)
-            qr_image = qr_image.resize((qr_size, qr_size), Image.Resampling.LANCZOS)
-            
-            # Save to temp bytes for ReportLab
-            temp_buffer = io.BytesIO()
-            qr_image.save(temp_buffer, format='PNG')
-            temp_buffer.seek(0)
-            
-            # Draw image on PDF
-            can.drawImage(ImageReader(temp_buffer), x, y, width=qr_size, height=qr_size)
+            import pyzbar
+            # Test if pyzbar actually works (DLL check)
+            test_img = Image.new('L', (100, 100))
+            pyzbar.decode(test_img)
+            pyzbar_available = True
         except Exception as e:
-            print(f"Error adding QR code: {e}")
+            # pyzbar might be installed but DLL missing
+            pass
     
-    # Add file info text if provided
-    if file_info:
-        text_y = y - 15
-        can.setFont("Helvetica-Bold", 8)
-        can.drawString(x, text_y, f"Ref: {file_info.get('reference', '')}")
-        
-        text_y -= 10
-        can.setFont("Helvetica", 6)
-        can.drawString(x, text_y, f"Title: {file_info.get('title', '')[:25]}")
-        
-        text_y -= 8
-        can.drawString(x, text_y, f"Downloaded: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
-        
-        text_y -= 8
-        can.drawString(x, text_y, f"By: {file_info.get('downloaded_by', '')}")
-    
-    can.save()
-    packet.seek(0)
-    
-    return packet
-
-
-def add_qr_watermark_to_pdf(input_pdf_path, output_pdf_path, qr_code_path, file_info=None, position='top-right'):
-    """
-    Add QR code watermark to all pages of a PDF
-    
-    Args:
-        input_pdf_path: Path to input PDF file
-        output_pdf_path: Path to output PDF file
-        qr_code_path: Path to QR code image
-        file_info: Optional dict with file info
-        position: Position of watermark
-    
-    Returns:
-        bool: True if successful
-    """
+    # Try OpenCV as fallback (always check, not just if pyzbar unavailable)
     try:
-        # Read the input PDF
-        reader = PdfReader(input_pdf_path)
-        writer = PdfWriter()
-        
-        # Create watermark page
-        watermark_packet = create_qr_watermark(qr_code_path, file_info, position)
-        watermark_pdf = PdfReader(watermark_packet)
-        watermark_page = watermark_pdf.pages[0]
-        
-        # Add watermark to each page
-        for page in reader.pages:
-            # Merge watermark onto the page
-            page.merge_page(watermark_page)
-            writer.add_page(page)
-        
-        # Write output
-        with open(output_pdf_path, 'wb') as output_file:
-            writer.write(output_file)
-        
-        return True
-    except Exception as e:
-        print(f"Error adding watermark to PDF: {e}")
-        return False
-
-
-def add_qr_watermark_to_pdf_bytes(input_pdf_bytes, qr_code_path, file_info=None, position='top-right'):
-    """
-    Add QR code watermark to PDF from bytes
+        import cv2
+        import numpy as np
+        opencv_available = True
+    except ImportError:
+        pass
     
-    Args:
-        input_pdf_bytes: BytesIO or bytes of input PDF
-        qr_code_path: Path to QR code image
-        file_info: Optional dict with file info
-        position: Position of watermark
+    if not pyzbar_available and not opencv_available:
+        return {
+            'found': False,
+            'matched': False,
+            'qr_data': None,
+            'message': 'QR scanning libraries not properly installed. Skipping QR verification. Please install pyzbar with dependencies or opencv-python.'
+        }
     
-    Returns:
-        BytesIO: PDF with watermark
-    """
-    try:
-        # Read the input PDF
-        if isinstance(input_pdf_bytes, bytes):
-            input_stream = io.BytesIO(input_pdf_bytes)
+    if not os.path.exists(pdf_path):
+        return {
+            'found': False,
+            'matched': False,
+            'qr_data': None,
+            'message': 'PDF file not found.'
+        }
+    
+    # Helper function to check if QR data matches expected
+    def check_qr_match(qr_data, expected_qr_data, page_num):
+        if expected_qr_data:
+            if expected_qr_data in qr_data:
+                return {
+                    'found': True,
+                    'matched': True,
+                    'qr_data': qr_data,
+                    'message': f'QR code found and matched on page {page_num + 1}'
+                }
+            else:
+                return {
+                    'found': True,
+                    'matched': False,
+                    'qr_data': qr_data,
+                    'message': f'QR code found but does not match file. Expected: {expected_qr_data}, Found: {qr_data[:50]}...'
+                }
         else:
-            input_stream = input_pdf_bytes
+            return {
+                'found': True,
+                'matched': True,
+                'qr_data': qr_data,
+                'message': f'QR code found on page {page_num + 1}'
+            }
+    
+    try:
+        # Convert PDF pages to images using PyMuPDF with higher resolution
+        if pymupdf_available:
+            try:
+                doc = fitz.open(pdf_path)
+                images = []
+                for page_num in range(len(doc)):
+                    page = doc.load_page(page_num)
+                    # Use 3x resolution for better QR detection
+                    pix = page.get_pixmap(matrix=fitz.Matrix(3, 3))
+                    img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+                    images.append((page_num, img))
+                doc.close()
+            except Exception as e:
+                return {
+                    'found': False,
+                    'matched': False,
+                    'qr_data': None,
+                    'message': f'Error reading PDF with PyMuPDF: {str(e)}'
+                }
+        else:
+            return {
+                'found': False,
+                'matched': False,
+                'qr_data': None,
+                'message': 'PyMuPDF not installed. Please install pymupdf for PDF scanning.'
+            }
+        
+        # Try multiple preprocessing methods and both detectors
+        for page_num, image in images:
             
-        reader = PdfReader(input_stream)
-        writer = PdfWriter()
+            # Method 1: Try OpenCV first (usually more reliable)
+            if opencv_available:
+                try:
+                    import cv2
+                    import numpy as np
+                    
+                    # Convert PIL to OpenCV format
+                    cv_image = cv2.cvtColor(np.array(image.convert('RGB')), cv2.COLOR_RGB2BGR)
+                    
+                    # Try multiple approaches with OpenCV
+                    
+                    # Approach 1a: Direct detection on grayscale
+                    gray_cv = cv2.cvtColor(cv_image, cv2.COLOR_BGR2GRAY)
+                    qr_detector = cv2.QRCodeDetector()
+                    
+                    # Try detectAndDecodeMulti first
+                    retval, decoded_info, points, straight_qrcode = qr_detector.detectAndDecodeMulti(gray_cv)
+                    
+                    if retval and decoded_info is not None and len(decoded_info) > 0:
+                        for qr_data in decoded_info:
+                            if qr_data and len(qr_data) > 0:
+                                result = check_qr_match(qr_data, expected_qr_data, page_num)
+                                if result['found']:
+                                    return result
+                    
+                    # Approach 1b: Try detectAndDecode (single QR)
+                    retval, decoded_info = qr_detector.detectAndDecode(gray_cv)
+                    if retval and decoded_info and len(decoded_info) > 0:
+                        result = check_qr_match(decoded_info, expected_qr_data, page_num)
+                        if result['found']:
+                            return result
+                    
+                    # Approach 1c: Try on color image
+                    retval, decoded_info, points, straight_qrcode = qr_detector.detectAndDecodeMulti(cv_image)
+                    
+                    if retval and decoded_info is not None and len(decoded_info) > 0:
+                        for qr_data in decoded_info:
+                            if qr_data and len(qr_data) > 0:
+                                result = check_qr_match(qr_data, expected_qr_data, page_num)
+                                if result['found']:
+                                    return result
+                    
+                    # Approach 1d: Try with image preprocessing (contrast enhancement)
+                    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
+                    enhanced = clahe.apply(gray_cv)
+                    retval, decoded_info, points, straight_qrcode = qr_detector.detectAndDecodeMulti(enhanced)
+                    
+                    if retval and decoded_info is not None and len(decoded_info) > 0:
+                        for qr_data in decoded_info:
+                            if qr_data and len(qr_data) > 0:
+                                result = check_qr_match(qr_data, expected_qr_data, page_num)
+                                if result['found']:
+                                    return result
+                                
+                except Exception as e:
+                    # OpenCV failed, continue to try pyzbar
+                    pass
+            
+            # Method 2: Try pyzbar
+            if pyzbar_available:
+                try:
+                    import pyzbar
+                    
+                    # Try multiple image formats
+                    for color_mode in ['L', 'RGB']:
+                        if color_mode == 'L':
+                            gray_image = image.convert('L')
+                        else:
+                            gray_image = image.convert('RGB')
+                        
+                        # Decode QR codes in the image
+                        decoded_objects = pyzbar.decode(gray_image)
+                        
+                        for obj in decoded_objects:
+                            qr_data = obj.data.decode('utf-8')
+                            result = check_qr_match(qr_data, expected_qr_data, page_num)
+                            if result['found']:
+                                return result
+                            
+                        # Also try with ZBarSymbol.QRCODE explicitly
+                        decoded_objects = pyzbar.decode(gray_image, symbols=[pyzbar.ZBarSymbol.QRCODE])
+                        
+                        for obj in decoded_objects:
+                            qr_data = obj.data.decode('utf-8')
+                            result = check_qr_match(qr_data, expected_qr_data, page_num)
+                            if result['found']:
+                                return result
+                except Exception as e:
+                    # pyzbar failed, continue
+                    pass
         
-        # Create watermark page
-        watermark_packet = create_qr_watermark(qr_code_path, file_info, position)
-        watermark_pdf = PdfReader(watermark_packet)
-        watermark_page = watermark_pdf.pages[0]
+        return {
+            'found': False,
+            'matched': False,
+            'qr_data': None,
+            'message': 'No QR code found in the PDF.'
+        }
         
-        # Add watermark to each page
-        for page in reader.pages:
-            page.merge_page(watermark_page)
-            writer.add_page(page)
-        
-        # Return as bytes
-        output_stream = io.BytesIO()
-        writer.write(output_stream)
-        output_stream.seek(0)
-        
-        return output_stream
     except Exception as e:
-        print(f"Error adding watermark to PDF: {e}")
-        return None
+        return {
+            'found': False,
+            'matched': False,
+            'qr_data': None,
+            'message': f'Error scanning PDF: {str(e)}'
+        }
 
 
-def get_file_with_watermark(file_instance, request, version=None):
+def add_watermark_to_pdf(input_pdf, output_pdf, qr_data, file_reference):
     """
-    Get a file with QR watermark for download
+    Add a QR code watermark to a PDF file
     
     Args:
-        file_instance: File model instance
-        request: Django request object
-        version: Optional FileVersion instance
+        input_pdf: Path to the input PDF file
+        output_pdf: Path to save the watermarked PDF
+        qr_data: Data to encode in the QR code
+        file_reference: Reference number of the file
+    """
+    # Generate QR code
+    import qrcode
+    qr = qrcode.QRCode(version=1, box_size=10, border=4)
+    qr.add_data(qr_data)
+    qr.make(fit=True)
+    qr_img = qr.make_image(fill_color="black", back_color="white")
+    
+    # Save QR code to temporary bytes
+    qr_buffer = io.BytesIO()
+    qr_img.save(qr_buffer, format='PNG')
+    qr_buffer.seek(0)
+    
+    # Open PDF
+    reader = PdfReader(input_pdf)
+    writer = PdfWriter()
+    
+    # Add watermark to each page
+    for page in reader.pages:
+        # Create watermark layer
+        watermark_canvas = canvas.Canvas(io.BytesIO(), pagesize=letter)
+        
+        # Draw QR code on watermark layer
+        watermark_canvas.drawImage(
+            ImageReader(qr_buffer),
+            400, 50,  # Position (bottom-right)
+            80, 80,   # Size
+            mask='auto'
+        )
+        
+        # Add watermark text
+        watermark_canvas.drawString(400, 140, f"Ref: {file_reference}")
+        watermark_canvas.drawString(400, 125, f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+        
+        watermark_canvas.save()
+        watermark_buffer = io.BytesIO()
+        watermark_canvas = canvas.Canvas(watermark_buffer, pagesize=letter)
+        
+        # Overlay watermark
+        page.merge_page(watermark_buffer)
+        writer.add_page(page)
+    
+    # Save output
+    with open(output_pdf, 'wb') as output:
+        writer.write(output)
+
+
+def add_qr_to_image(image_path, qr_data, output_path=None):
+    """
+    Add QR code to an image file
+    
+    Args:
+        image_path: Path to the image
+        qr_data: Data to encode in QR code
+        output_path: Optional output path, defaults to overwriting input
+    """
+    import qrcode
+    from PIL import Image
+    
+    # Generate QR
+    qr = qrcode.QRCode(version=1, box_size=10, border=4)
+    qr.add_data(qr_data)
+    qr.make(fit=True)
+    qr_img = qr.make_image(fill_color="black", back_color="white")
+    
+    # Open original image
+    img = Image.open(image_path)
+    
+    # Calculate position for QR (bottom-right corner)
+    qr_size = 100
+    margin = 10
+    pos = (img.width - qr_size - margin, img.height - qr_size - margin)
+    
+    # Paste QR onto image
+    img.paste(qr_img, pos)
+    
+    # Save
+    if output_path is None:
+        output_path = image_path
+    
+    img.save(output_path)
+
+
+def add_qr_watermark_to_pdf_bytes(input_pdf_bytes, qr_image_path, file_info=None, position='top-right'):
+    """
+    Add QR code watermark to a PDF from bytes
+    
+    Args:
+        input_pdf_bytes: BytesIO containing the PDF
+        qr_image_path: Path to the QR code image file
+        file_info: Optional dict with file info (reference, title, etc.)
+        position: Position of QR code ('top-right', 'bottom-right', 'top-left', 'bottom-left')
     
     Returns:
-        tuple: (file_path, needs_watermark, file_info)
+        BytesIO: The watermarked PDF content
     """
-    # Determine which file to use
-    if version and version.file_attachment:
-        file_path = version.file_attachment.path
-        file_name = version.original_filename or version.file_attachment.name
-    elif file_instance.file_attachment:
-        file_path = file_instance.file_attachment.path
-        file_name = file_instance.original_filename or file_instance.file_attachment.name
-    else:
-        return None, False, None
-    
-    # Check if it's a PDF
-    is_pdf = file_name.lower().endswith('.pdf')
-    
-    # Get QR code path
-    qr_code_path = None
-    if file_instance.qr_code:
-        qr_code_path = file_instance.qr_code.path
-    
-    # Prepare file info for watermark
-    file_info = {
-        'reference': file_instance.reference,
-        'title': file_instance.title,
-        'downloaded_by': request.user.get_full_name() or request.user.username,
-    }
-    
-    return file_path, is_pdf, file_info, qr_code_path
+    try:
+        from PyPDF2 import PdfReader, PdfWriter
+        from reportlab.pdfgen import canvas
+        from reportlab.lib.utils import ImageReader
+        from reportlab.lib.pagesizes import letter
+        import io
+        
+        # Read the input PDF
+        input_pdf_bytes.seek(0)
+        reader = PdfReader(input_pdf_bytes)
+        writer = PdfWriter()
+        
+        # Load QR code image
+        qr_image = Image.open(qr_image_path)
+        
+        # Define QR code size and position based on page size
+        qr_width = 100
+        qr_height = 100
+        
+        # Process each page
+        for page in reader.pages:
+            # Get page dimensions
+            page_width = float(page.mediabox.width)
+            page_height = float(page.mediabox.height)
+            
+            # Calculate position
+            margin = 20
+            if position == 'top-right':
+                x = page_width - qr_width - margin
+                y = page_height - qr_height - margin
+            elif position == 'bottom-right':
+                x = page_width - qr_width - margin
+                y = margin
+            elif position == 'top-left':
+                x = margin
+                y = page_height - qr_height - margin
+            else:  # bottom-left
+                x = margin
+                y = margin
+            
+            # Create watermark overlay
+            watermark_buffer = io.BytesIO()
+            c = canvas.Canvas(watermark_buffer, pagesize=(page_width, page_height))
+            
+            # Draw QR code
+            # Save QR image to temporary buffer
+            qr_temp_buffer = io.BytesIO()
+            qr_image.save(qr_temp_buffer, format='PNG')
+            qr_temp_buffer.seek(0)
+            
+            c.drawImage(
+                ImageReader(qr_temp_buffer),
+                x, y,
+                width=qr_width,
+                height=qr_height,
+                mask='auto'
+            )
+            
+            # Add file info text if provided
+            if file_info:
+                text_y = y - 15
+                if 'reference' in file_info:
+                    c.drawString(x, text_y, f"Ref: {file_info['reference']}")
+                    text_y -= 12
+                if 'title' in file_info:
+                    # Truncate title if too long
+                    title = file_info['title'][:30] + '...' if len(file_info['title']) > 30 else file_info['title']
+                    c.drawString(x, text_y, f"Title: {title}")
+                    text_y -= 12
+                if 'downloaded_by' in file_info:
+                    c.drawString(x, text_y, f"Downloaded by: {file_info['downloaded_by']}")
+                    text_y -= 12
+                from datetime import datetime
+                c.drawString(x, text_y, f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+            
+            c.save()
+            watermark_buffer.seek(0)
+            
+            # Merge watermark with page
+            watermark_reader = PdfReader(watermark_buffer)
+            watermark_page = watermark_reader.pages[0]
+            page.merge_page(watermark_page)
+            
+            writer.add_page(page)
+        
+        # Write to output buffer
+        output_buffer = io.BytesIO()
+        writer.write(output_buffer)
+        output_buffer.seek(0)
+        
+        return output_buffer
+        
+    except Exception as e:
+        import logging
+        logging.error(f"Error adding QR watermark to PDF: {str(e)}")
+        return None
