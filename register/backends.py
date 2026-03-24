@@ -36,7 +36,12 @@ class EmployeeIDBackend(ModelBackend):
         return None
     
     def is_user_active(self, user):
-        """Check if user is allowed to login based on their profile status"""
+        """Check if user is allowed to login based on their profile and Django user status"""
+        # First check Django's built-in is_active field
+        if not user.is_active:
+            return False
+        
+        # Then check UserProfile's is_active field
         try:
             if hasattr(user, 'profile') and user.profile:
                 return user.profile.is_active

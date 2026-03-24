@@ -24,8 +24,26 @@ def login_view(request):
         user = authenticate(request, username=username, password=password)
         
         if user is not None:
-            # Set backend for multiple authentication backends
-            user.backend = 'django.contrib.auth.backends.ModelBackend'
+            # Check if user profile is active before allowing login
+            from register.models import UserProfile
+            user_is_active = True
+            try:
+                if hasattr(user, 'profile') and user.profile:
+                    user_is_active = user.profile.is_active
+                else:
+                    profile = UserProfile.objects.get(user=user)
+                    user_is_active = profile.is_active
+            except UserProfile.DoesNotExist:
+                user_is_active = True
+            except Exception:
+                user_is_active = True
+            
+            if not user_is_active:
+                messages.error(request, 'Your account is inactive. Please contact the administrator.')
+                return render(request, 'registration/login.html')
+            
+            # Set backend to our custom backend
+            user.backend = 'register.backends.EmployeeIDBackend'
             
             # Check if user has 2FA enabled
             has_2fa = TOTPDevice.objects.filter(user=user, confirmed=True).exists()

@@ -150,9 +150,10 @@ LOGOUT_REDIRECT_URL = 'login'
 LOGIN_URL = 'login'
 
 # Authentication backends
+# Custom EmployeeIDBackend must come first to check profile.is_active
 AUTHENTICATION_BACKENDS = [
-    'django.contrib.auth.backends.ModelBackend',
     'register.backends.EmployeeIDBackend',
+    'django.contrib.auth.backends.ModelBackend',
 ]
 
 # File tracking settings

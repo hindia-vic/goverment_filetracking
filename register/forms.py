@@ -49,10 +49,18 @@ class UserRegistrationForm(UserCreationForm):
     def clean_email(self):
         email = self.cleaned_data.get('email')
         if email:
-            # Check if email is already in use
+            # Check if email is already in use (case-insensitive)
             if User.objects.filter(email__iexact=email).exists():
-                raise forms.ValidationError('This email has already been used. Please use a different email address.')
+                raise forms.ValidationError('This email address is already registered. Please use a different email address.')
         return email
+    
+    def clean_username(self):
+        username = self.cleaned_data.get('username')
+        if username:
+            # Check if username is already in use
+            if User.objects.filter(username__iexact=username).exists():
+                raise forms.ValidationError('This username is already taken. Please choose a different username.')
+        return username
     
     def clean_employee_id(self):
         employee_id = self.cleaned_data.get('employee_id')
