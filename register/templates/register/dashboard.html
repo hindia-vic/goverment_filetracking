@@ -12,7 +12,7 @@
     </div>
 </div>
 
-<!-- Statistics Cards -->
+<!-- 1. Statistics Cards -->
 <div class="row mb-4">
     <div class="col-md-3">
         <div class="card border-0 shadow-sm h-100">
@@ -91,7 +91,7 @@
     </div>
 </div>
 
-<!-- Quick Actions and User Info -->
+<!-- 2. Quick Actions + User Summary -->
 <div class="row mb-4">
     <!-- Quick Actions -->
     <div class="col-lg-8">
@@ -405,7 +405,244 @@
     {% endif %}
 </div>
 
-<!-- My Requests (for regular users) -->
+<!-- 4. Analytics Charts Section (Admin/Registry Only) -->
+{% if user.is_superuser or user.profile.role == 'registry' or user.profile.role == 'admin' %}
+<div class="row mb-4">
+    <!-- File Status Chart -->
+    <div class="col-md-4">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-white border-0">
+                <h5 class="mb-0"><i class="bi bi-pie-chart me-2"></i>File Status Distribution</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="fileStatusChart"></canvas>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Request Status Chart -->
+    <div class="col-md-4">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-white border-0">
+                <h5 class="mb-0"><i class="bi bi-bar-chart me-2"></i>Request Status</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="requestStatusChart"></canvas>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Activity Summary -->
+    <div class="col-md-4">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-white border-0">
+                <h5 class="mb-0"><i class="bi bi-clock-history me-2"></i>Activity Summary</h5>
+            </div>
+            <div class="card-body">
+                <div class="row text-center mb-3">
+                    <div class="col-6">
+                        <div class="p-3 bg-primary bg-opacity-10 rounded">
+                            <h3 class="mb-0 text-primary">{{ activity_today }}</h3>
+                            <small class="text-muted">Today</small>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="p-3 bg-info bg-opacity-10 rounded">
+                            <h3 class="mb-0 text-info">{{ activity_week }}</h3>
+                            <small class="text-muted">This Week</small>
+                        </div>
+                    </div>
+                </div>
+                {% if activity_by_type %}
+                <h6 class="mb-2">Activity by Type</h6>
+                <div class="d-flex flex-wrap gap-1">
+                    {% for action, count in activity_by_type.items %}
+                    <span class="badge bg-secondary">
+                        {{ action|title }}: {{ count }}
+                    </span>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <!-- Monthly Files Trend -->
+    <div class="col-md-6">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-white border-0">
+                <h5 class="mb-0"><i class="bi bi-graph-up me-2"></i>Monthly Files Trend</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="monthlyFilesChart"></canvas>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Monthly Requests Trend -->
+    <div class="col-md-6">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-white border-0">
+                <h5 class="mb-0"><i class="bi bi-graph-up-arrow me-2"></i>Monthly Requests Trend</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="monthlyRequestsChart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // File Status Chart (Doughnut)
+    const fileStatusCtx = document.getElementById('fileStatusChart').getContext('2d');
+    new Chart(fileStatusCtx, {
+        type: 'doughnut',
+        data: {
+            labels: ['In Registry', 'Checked Out', 'Overdue', 'Archived'],
+            datasets: [{
+                data: [{{ in_registry }}, {{ checked_out }}, {{ overdue }}, {{ archived }}],
+                backgroundColor: [
+                    '#198754',  // Success - In Registry
+                    '#ffc107',  // Warning - Checked Out
+                    '#dc3545',  // Danger - Overdue
+                    '#6c757d'   // Secondary - Archived
+                ],
+                borderWidth: 0
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        padding: 15,
+                        usePointStyle: true
+                    }
+                }
+            },
+            cutout: '60%'
+        }
+    });
+    
+    // Request Status Chart (Bar)
+    const requestStatusCtx = document.getElementById('requestStatusChart').getContext('2d');
+    new Chart(requestStatusCtx, {
+        type: 'bar',
+        data: {
+            labels: ['Pending', 'Approved', 'Handed Over', 'Returned', 'Rejected'],
+            datasets: [{
+                label: 'Requests',
+                data: [{{ pending_requests }}, {{ approved_requests }}, {{ handed_over_requests }}, {{ returned_requests }}, {{ rejected_requests }}],
+                backgroundColor: [
+                    '#6c757d',   // Pending
+                    '#0d6efd',   // Approved
+                    '#ffc107',   // Handed Over
+                    '#198754',   // Returned
+                    '#dc3545'    // Rejected
+                ],
+                borderRadius: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    display: false
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        stepSize: 1
+                    }
+                }
+            }
+        }
+    });
+    
+    // Monthly Files Trend (Line)
+    const monthlyFilesCtx = document.getElementById('monthlyFilesChart').getContext('2d');
+    new Chart(monthlyFilesCtx, {
+        type: 'line',
+        data: {
+            labels: [{% for m in monthly_files %}'{{ m.month }}'{% if not forloop.last %}, {% endif %}{% endfor %}],
+            datasets: [{
+                label: 'Files',
+                data: [{% for m in monthly_files %}{{ m.count }}{% if not forloop.last %}, {% endif %}{% endfor %}],
+                borderColor: '#0d6efd',
+                backgroundColor: 'rgba(13, 110, 253, 0.1)',
+                fill: true,
+                tension: 0.4
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        padding: 15,
+                        usePointStyle: true
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        stepSize: 1
+                    }
+                }
+            }
+        }
+    });
+    
+    // Monthly Requests Trend (Line)
+    const monthlyRequestsCtx = document.getElementById('monthlyRequestsChart').getContext('2d');
+    new Chart(monthlyRequestsCtx, {
+        type: 'line',
+        data: {
+            labels: [{% for m in monthly_requests %}'{{ m.month }}'{% if not forloop.last %}, {% endif %}{% endfor %}],
+            datasets: [{
+                label: 'Requests',
+                data: [{% for m in monthly_requests %}{{ m.count }}{% if not forloop.last %}, {% endif %}{% endfor %}],
+                borderColor: '#ffc107',
+                backgroundColor: 'rgba(255, 193, 7, 0.1)',
+                fill: true,
+                tension: 0.4
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    position: 'bottom',
+                    labels: {
+                        padding: 15,
+                        usePointStyle: true
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        stepSize: 1
+                    }
+                }
+            }
+        }
+    });
+});
+</script>
+{% endif %}
+
+<!-- 5. My Requests (for regular users) -->
 {% if my_requests %}
 <div class="row mb-4">
     <div class="col-12">
@@ -460,7 +697,7 @@
 </div>
 {% endif %}
 
-<!-- Recent Activity & Department Stats -->
+<!-- 6. Recent Activity + Department Stats -->
 <div class="row">
     <!-- Recent Activity -->
     <div class="col-lg-8">

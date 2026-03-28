@@ -1211,12 +1211,109 @@ class DashboardView(LoginRequiredMixin, View):
     def get(self, request):
         # Get user-specific data
         user = request.user
+        from django.db.models import Q
+        from django.utils import timezone
+        from datetime import timedelta
         
         # Base file counts
         total_files = File.objects.count()
         in_registry = File.objects.filter(status='in_registry').count()
         checked_out = File.objects.filter(status='checked_out').count()
         overdue = File.objects.filter(status='overdue').count()
+        archived = File.objects.filter(status='archived').count()
+        
+        # File status distribution for charts
+        file_status_data = {
+            'in_registry': in_registry,
+            'checked_out': checked_out,
+            'overdue': overdue,
+            'archived': archived,
+        }
+        
+        # Request statistics
+        total_requests = FileRequest.objects.count()
+        pending_requests = FileRequest.objects.filter(status='pending').count()
+        approved_requests = FileRequest.objects.filter(status='approved').count()
+        handed_over_requests = FileRequest.objects.filter(status='handed_over').count()
+        returned_requests = FileRequest.objects.filter(status='returned_verified').count()
+        rejected_requests = FileRequest.objects.filter(status='rejected').count()
+        
+        # Request status distribution for charts
+        request_status_data = {
+            'pending': pending_requests,
+            'approved': approved_requests,
+            'handed_over': handed_over_requests,
+            'returned': returned_requests,
+            'rejected': rejected_requests,
+        }
+        
+        # Monthly file creation trend (last 6 months)
+        six_months_ago = timezone.now() - timedelta(days=180)
+        monthly_files = []
+        for i in range(6):
+            month_start = (timezone.now() - timedelta(days=30*i)).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            if i == 0:
+                month_end = timezone.now()
+            else:
+                month_end = month_start + timedelta(days=32)
+                month_end = month_end.replace(day=1)
+            
+            count = File.objects.filter(created_at__gte=month_start, created_at__lt=month_end).count()
+            month_name = month_start.strftime('%b')
+            monthly_files.append({'month': month_name, 'count': count})
+        monthly_files.reverse()
+        
+        # Monthly request trend
+        monthly_requests = []
+        for i in range(6):
+            month_start = (timezone.now() - timedelta(days=30*i)).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            if i == 0:
+                month_end = timezone.now()
+            else:
+                month_end = month_start + timedelta(days=32)
+                month_end = month_end.replace(day=1)
+            
+            count = FileRequest.objects.filter(created_at__gte=month_start, created_at__lt=month_end).count()
+            month_name = month_start.strftime('%b')
+            monthly_requests.append({'month': month_name, 'count': count})
+        monthly_requests.reverse()
+        
+        # Department statistics
+        dept_stats = []
+        for dept in Department.objects.filter(is_active=True)[:10]:
+            file_count = File.objects.filter(department=dept).count()
+            checked = File.objects.filter(department=dept, status='checked_out').count()
+            overdue_count = File.objects.filter(department=dept, status='overdue').count()
+            request_count = FileRequest.objects.filter(requesting_department=dept).count()
+            dept_stats.append({
+                'name': dept.name,
+                'file_count': file_count,
+                'checked_out': checked,
+                'overdue': overdue_count,
+                'requests': request_count
+            })
+        
+        # User activity - files checked out per user
+        top_users = []
+        from django.db.models import Count
+        user_checkouts = File.objects.filter(
+            current_holder__isnull=False
+        ).values('current_holder__username').annotate(
+            count=Count('id')
+        ).order_by('-count')[:5]
+        
+        # Activity log summary
+        today = timezone.now().date()
+        week_ago = today - timedelta(days=7)
+        activity_today = ActivityLog.objects.filter(timestamp__date=today).count()
+        activity_week = ActivityLog.objects.filter(timestamp__date__gte=week_ago).count()
+        
+        # Recent activity breakdown by type
+        activity_by_type = {}
+        for action_type, _ in ActivityLog.ACTION_TYPES:
+            count = ActivityLog.objects.filter(action=action_type).count()
+            if count > 0:
+                activity_by_type[action_type] = count
         
         # User's files checked out
         my_checked_out = []
@@ -1260,10 +1357,37 @@ class DashboardView(LoginRequiredMixin, View):
             ).select_related('file', 'requesting_user', 'requesting_department')[:5]
         
         context = {
+            # File statistics
             'total_files': total_files,
             'in_registry': in_registry,
             'checked_out': checked_out,
             'overdue': overdue,
+            'archived': archived,
+            'file_status_data': file_status_data,
+            
+            # Request statistics
+            'total_requests': total_requests,
+            'pending_requests': pending_requests,
+            'approved_requests': approved_requests,
+            'handed_over_requests': handed_over_requests,
+            'returned_requests': returned_requests,
+            'rejected_requests': rejected_requests,
+            'request_status_data': request_status_data,
+            
+            # Monthly trends
+            'monthly_files': monthly_files,
+            'monthly_requests': monthly_requests,
+            
+            # Department stats
+            'dept_stats': dept_stats,
+            
+            # User activity
+            'top_users': list(user_checkouts),
+            'activity_today': activity_today,
+            'activity_week': activity_week,
+            'activity_by_type': activity_by_type,
+            
+            # Lists
             'recent_movements': FileMovement.objects.select_related('file', 'from_user', 'to_user', 'from_department', 'to_department')[:10],
             'department_stats': Department.objects.annotate(
                 file_count=Count('files'),
@@ -1275,7 +1399,10 @@ class DashboardView(LoginRequiredMixin, View):
             'ready_for_pickup': ready_for_pickup,
             'pending_returns': pending_returns,
             'total_departments': Department.objects.filter(is_active=True).count(),
-            'archived_files': File.objects.filter(status='archived').count(),
+            'archived_files': archived,
+            
+            # Flags
+            'is_registry_or_admin': is_registry_or_admin,
         }
         return render(request, 'register/dashboard.html', context)
 
