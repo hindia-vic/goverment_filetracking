@@ -1207,6 +1207,40 @@ class QRCodeView(LoginRequiredMixin, View):
         return render(request, 'register/qr_print.html', {'file': file})
 
 
+class FilePreviewView(LoginRequiredMixin, View):
+    """View to preview file attachment in browser"""
+    def get(self, request, uuid):
+        file = get_object_or_404(File, uuid=uuid)
+        
+        if not file.file_attachment:
+            return HttpResponseNotFound("No file attachment found")
+        
+        # Open and serve the file
+        try:
+            fs = FileSystemStorage()
+            path = file.file_attachment.path
+            
+            if fs.exists(path):
+                with fs.open(path, 'rb') as f:
+                    content = f.read()
+                
+                # Detect content type based on file extension
+                import mimetypes
+                content_type, _ = mimetypes.guess_type(file.original_filename)
+                
+                # Fallback to octet-stream if content type is None
+                if content_type is None:
+                    content_type = 'application/octet-stream'
+                
+                response = HttpResponse(content, content_type=content_type)
+                response['Content-Disposition'] = f'inline; filename="{file.original_filename}"'
+                return response
+            else:
+                return HttpResponseNotFound("File not found on disk")
+        except Exception as e:
+            return HttpResponse(f"Error loading file: {str(e)}", status=500)
+
+
 class DashboardView(LoginRequiredMixin, View):
     def get(self, request):
         # Get user-specific data

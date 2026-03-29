@@ -47,6 +47,7 @@ urlpatterns = [
     path('files/<uuid:uuid>/checkout/', views.CheckoutView.as_view(), name='checkout'),
     path('files/<uuid:uuid>/checkin/', views.CheckinView.as_view(), name='checkin'),
     path('files/<uuid:uuid>/qr/', views.QRCodeView.as_view(), name='qr_code'),
+    path('files/<uuid:uuid>/preview/', views.FilePreviewView.as_view(), name='file_preview'),
     
     # File request workflow
     path('files/<uuid:uuid>/request/', views.FileRequestCreateView.as_view(), name='file_request'),
