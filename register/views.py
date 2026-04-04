@@ -1,4 +1,5 @@
 import io
+import logging
 import os
 from datetime import timedelta
 from django.shortcuts import render, get_object_or_404, redirect
@@ -11,6 +12,8 @@ from django.contrib import messages
 from django.utils import timezone
 from django.http import HttpResponse, FileResponse, JsonResponse
 from django.db.models import Q, Count
+from django.http import HttpResponseNotFound
+from django.core.files.storage import FileSystemStorage
 from django.core.paginator import Paginator
 from django.contrib.auth.forms import PasswordChangeForm
 from django.urls import reverse_lazy, reverse
@@ -30,8 +33,13 @@ from .forms import (
     FileRequestForm, FileRequestApprovalForm, FileHandoverForm, UserConfirmationForm,
     FileTagForm
 )
+from django.utils.decorators import method_decorator
+from django_ratelimit.decorators import ratelimit
+
+logger = logging.getLogger(__name__)
 
 
+@method_decorator(ratelimit(key='ip', rate='5/h', method='POST', block=True), name='post')
 class RegisterView(View):
     """User self-registration view"""
     template_name = 'register/register.html'
@@ -1966,6 +1974,9 @@ def file_download(request, uuid):
     # Import watermark function
     from register.watermark import add_qr_watermark_to_pdf_bytes
     
+    # Get logger
+    _logger = logging.getLogger(__name__)
+    
     file = get_object_or_404(File, uuid=uuid)
     
     # Check if user has permission to download
@@ -2045,7 +2056,16 @@ def file_download(request, uuid):
     # Get QR code path
     qr_code_path = None
     if file.qr_code:
-        qr_code_path = file.qr_code.path
+        try:
+            qr_code_path = file.qr_code.path
+            # Verify the file exists on disk
+            if os.path.exists(qr_code_path):
+                _logger.info(f"QR code found at: {qr_code_path}")
+            else:
+                _logger.error(f"QR code path exists in DB but file not found on disk: {qr_code_path}")
+                qr_code_path = None
+        except Exception as e:
+            _logger.error(f"Error getting QR code path: {str(e)}")
     
     # Check if file has attachment and is PDF
     if version:
@@ -2070,19 +2090,29 @@ def file_download(request, uuid):
     with open(file_path, 'rb') as f:
         file_content = f.read()
     
+    _logger.info(f"DOWNLOAD DEBUG - is_pdf: {is_pdf}, qr_code_path: {qr_code_path}")
+
     # Add QR watermark to PDF if applicable
+    watermarked_pdf = None
     if is_pdf and qr_code_path:
-        watermarked_pdf = add_qr_watermark_to_pdf_bytes(
-            io.BytesIO(file_content),
-            qr_code_path,
-            file_info=file_info,
-            position='top-right'
-        )
+        _logger.info(f"Starting watermark process for file: {file_name}")
+        try:
+            watermarked_pdf = add_qr_watermark_to_pdf_bytes(
+                io.BytesIO(file_content),
+                qr_code_path,
+                file_info=file_info,
+                position='bottom-right'
+            )
+        except Exception as e:
+            _logger.error(f"Exception in watermark function: {str(e)}")
+        
         if watermarked_pdf:
             file_content = watermarked_pdf.getvalue()
-            # Add _watermarked to filename
             base_name, ext = os.path.splitext(file_name)
             file_name = f"{base_name}_watermarked{ext}"
+            _logger.info(f"Successfully watermarked PDF")
+        else:
+            _logger.error("Watermark returned None - QR code may not have been embedded")
     
     response = HttpResponse(file_content, content_type='application/octet-stream')
     response['Content-Disposition'] = f'attachment; filename="{file_name}"'

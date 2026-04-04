@@ -15,11 +15,20 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
-from django.urls import path,include
+from django.urls import path, include, re_path
 from django.contrib.auth import views as auth_views
 from django.conf import settings
 from django.conf.urls.static import static
+from django.views.static import serve
 from register.two_factor_views import login_view
+import logging
+
+logger = logging.getLogger(__name__)
+
+# Debug logging for media file serving
+logger.info(f"DEBUG={settings.DEBUG}")
+logger.info(f"MEDIA_URL={settings.MEDIA_URL}")
+logger.info(f"MEDIA_ROOT={settings.MEDIA_ROOT}")
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -29,5 +38,11 @@ urlpatterns = [
     path('logout/', auth_views.LogoutView.as_view(), name='logout'),
 ]
 
-if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+# Serve media files in both DEBUG and production modes
+# Use the serve view directly to work regardless of DEBUG setting
+urlpatterns += [
+    re_path(r'^media/(?P<path>.*)$', serve, {'document_root': settings.MEDIA_ROOT}, name='media'),
+]
+
+# Also keep the static() for DEBUG=True compatibility
+urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

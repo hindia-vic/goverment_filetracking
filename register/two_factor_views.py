@@ -3,6 +3,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth import views as auth_views
 from django.contrib import messages
 from django_otp.plugins.otp_totp.models import TOTPDevice
+from django_ratelimit.decorators import ratelimit
 import io
 import base64
 import pyotp
@@ -10,6 +11,7 @@ import secrets
 import base64
 
 
+@ratelimit(key='ip', rate='5/m', method='POST', block=True)
 def login_view(request):
     """Custom login view that checks for 2FA"""
     if request.user.is_authenticated:

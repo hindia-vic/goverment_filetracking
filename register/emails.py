@@ -366,3 +366,38 @@ File Tracking System
     except Exception as e:
         print(f"Error sending email: {e}")
         return 0
+
+
+def send_return_rejected_notification(file_request):
+    """Send email to user when their file return is rejected"""
+    recipient = file_request.requesting_user
+    
+    if not recipient.email:
+        return 0
+    
+    subject = f'File Return Rejected - {file_request.file.reference}'
+    
+    try:
+        send_mail(
+            subject=subject,
+            message=f"""
+Dear {recipient.get_full_name() or recipient.username},
+
+Your file return has been rejected by the registry.
+
+File: {file_request.file.reference} - {file_request.file.title}
+Reason: {file_request.return_notes or 'No reason provided'}
+
+Please contact the registry for more information to resolve this issue.
+
+Best regards,
+File Tracking System
+            """,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[recipient.email],
+            fail_silently=False,
+        )
+        return 1
+    except Exception as e:
+        print(f"Error sending email: {e}")
+        return 0

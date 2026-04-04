@@ -31,10 +31,10 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = env('SECRET_KEY')
+SECRET_KEY = env('SECRET_KEY',default='unsafe-key')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = False
 
 ALLOWED_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0', '192.168.100.5']
 
@@ -54,6 +54,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'django_otp',
     'django_otp.plugins.otp_totp',
+    'django_ratelimit',
     'register',
 ]
 
@@ -67,6 +68,7 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'django.contrib.sites.middleware.CurrentSiteMiddleware',
     'django_otp.middleware.OTPMiddleware',
+    'django_ratelimit.middleware.RatelimitMiddleware',
 ]
 
 ROOT_URLCONF = 'file_system.urls'
@@ -111,6 +113,19 @@ DATABASES = {
         'PORT': env('DB_PORT', default='5432'),
     }
 }
+
+# Caching configuration for rate limiting
+# Use local memory cache (can switch to Redis for production)
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'unique-snowflake',
+    }
+}
+
+# Suppress django-ratelimit cache warnings
+SILENCED_SYSTEM_CHECKS = ['django_ratelimit.E003', 'django_ratelimit.W001']
+
 # Password validation
 # https://docs.djangoproject.com/en/6.0/ref/settings/#auth-password-validators
 
@@ -177,11 +192,74 @@ EMAIL_USE_TLS = True
 EMAIL_HOST_USER = env('EMAIL_HOST_USER')
 EMAIL_HOST_PASSWORD =env('EMAIL_HOST_PASSWORD')
 
-DEFAULT_FROM_EMAIL = 'File Tracking System <env("EMAIL_HOST_USER")>'
+DEFAULT_FROM_EMAIL = env('EMAIL_HOST_USER')
 
 # Domain for password reset emails
 SITE_DOMAIN = 'localhost:8000'
 SITE_ID = 1
+
+# Logging Configuration
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}',
+            'style': '{',
+        },
+        'simple': {
+            'format': '{levelname} {asctime} {module} {message}',
+            'style': '{',
+        },
+    },
+    'filters': {
+        'require_debug_false': {
+            '()': 'django.utils.log.RequireDebugFalse',
+        },
+        'require_debug_true': {
+            '()': 'django.utils.log.RequireDebugTrue',
+        },
+    },
+    'handlers': {
+        'console': {
+            'level': 'INFO',
+            'class': 'logging.StreamHandler',
+            'formatter': 'simple',
+        },
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'django.request': {
+            'handlers': ['console'],
+            'level': 'ERROR',
+            'propagate': False,
+        },
+        'django.db.backends': {
+            'handlers': ['console'],
+            'level': 'WARNING',
+            'propagate': False,
+        },
+        'register': {
+            'handlers': ['console'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': 'INFO',
+    },
+}
+
+# Rate Limiting Configuration
+RATELIMIT_USE_CACHE = 'default'
+RATELIMIT_DEFAULT_RATE = '100/hour'
+RATELIMIT_DEFAULT_GROUP = 'default'
+RATELIMIT_USE_REMOTE_ADDR = True
 
 # Django REST Framework configuration
 REST_FRAMEWORK = {

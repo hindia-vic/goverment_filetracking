@@ -333,19 +333,29 @@ def add_qr_to_image(image_path, qr_data, output_path=None):
     img.save(output_path)
 
 
-def add_qr_watermark_to_pdf_bytes(input_pdf_bytes, qr_image_path, file_info=None, position='top-right'):
+def add_qr_watermark_to_pdf_bytes(input_pdf_bytes, qr_image_path, file_info=None, position='bottom-right'):
     """
     Add QR code watermark to a PDF from bytes
+    
+    Specifications:
+    - Size: Small (40px-80px width, adaptive to page size)
+    - Opacity: Low (10% - 15%) to act as a watermark
+    - Color: Neutral gray
+    - Error correction: High (to remain scannable despite low visibility)
+    - Placement: Bottom-right corner (margin area)
     
     Args:
         input_pdf_bytes: BytesIO containing the PDF
         qr_image_path: Path to the QR code image file
         file_info: Optional dict with file info (reference, title, etc.)
-        position: Position of QR code ('top-right', 'bottom-right', 'top-left', 'bottom-left')
+        position: Position of QR code (default: 'bottom-right')
     
     Returns:
         BytesIO: The watermarked PDF content
     """
+    import logging
+    logger = logging.getLogger(__name__)
+    
     try:
         from PyPDF2 import PdfReader, PdfWriter
         from reportlab.pdfgen import canvas
@@ -353,73 +363,98 @@ def add_qr_watermark_to_pdf_bytes(input_pdf_bytes, qr_image_path, file_info=None
         from reportlab.lib.pagesizes import letter
         import io
         
+        # Check if QR image path exists
+        if not os.path.exists(qr_image_path):
+            logger.error(f"QR code image not found at path: {qr_image_path}")
+            return None
+        
         # Read the input PDF
         input_pdf_bytes.seek(0)
         reader = PdfReader(input_pdf_bytes)
         writer = PdfWriter()
         
-        # Load QR code image
+        # Load QR code image and prepare it for watermark
         qr_image = Image.open(qr_image_path)
         
-        # Define QR code size and position based on page size
-        qr_width = 100
-        qr_height = 100
+        # Keep original black/white QR code (better contrast for scanning)
+        qr_rgba = qr_image.convert('RGBA')
+        
+        # Create a transparent image preserving the original QR pattern
+        width, height = qr_rgba.size
+        transparent_qr = Image.new('RGBA', (width, height), (0, 0, 0, 0))
+        
+        # Copy QR pattern - keep black modules, transparent background
+        black = (0, 0, 0, 255)  # Pure black for high contrast
+        transparent = (0, 0, 0, 0)
+        
+        for y in range(height):
+            for x in range(width):
+                pixel = qr_rgba.getpixel((x, y))
+                if isinstance(pixel, tuple):
+                    gray_value = pixel[0] if len(pixel) > 0 else 255
+                else:
+                    gray_value = pixel
+                    
+                # If pixel is dark (QR module), use black; otherwise transparent
+                if gray_value < 128:
+                    transparent_qr.putpixel((x, y), black)
+                else:
+                    transparent_qr.putpixel((x, y), transparent)
+        
+        # Save transparent QR to buffer
+        qr_buffer = io.BytesIO()
+        transparent_qr.save(qr_buffer, format='PNG')
+        qr_buffer.seek(0)
         
         # Process each page
-        for page in reader.pages:
+        for page_num, page in enumerate(reader.pages):
             # Get page dimensions
             page_width = float(page.mediabox.width)
             page_height = float(page.mediabox.height)
             
-            # Calculate position
-            margin = 20
+            # Calculate adaptive QR size (between 40-80px based on page width)
+            if page_width < 400:  # Very small page
+                qr_width = 40
+                qr_height = 40
+            elif page_width < 600:  # A4 or smaller
+                qr_width = 50
+                qr_height = 50
+            elif page_width < 800:  # Larger than A4
+                qr_width = 60
+                qr_height = 60
+            else:  # Large format
+                qr_width = 70
+                qr_height = 70
+            
+            # Calculate position - bottom-right corner (margin area)
+            margin = 30
+            
             if position == 'top-right':
                 x = page_width - qr_width - margin
                 y = page_height - qr_height - margin
-            elif position == 'bottom-right':
-                x = page_width - qr_width - margin
+            elif position == 'bottom-left':
+                x = margin
                 y = margin
             elif position == 'top-left':
                 x = margin
                 y = page_height - qr_height - margin
-            else:  # bottom-left
-                x = margin
+            else:  # bottom-right (default)
+                x = page_width - qr_width - margin
                 y = margin
             
             # Create watermark overlay
             watermark_buffer = io.BytesIO()
             c = canvas.Canvas(watermark_buffer, pagesize=(page_width, page_height))
             
-            # Draw QR code
-            # Save QR image to temporary buffer
-            qr_temp_buffer = io.BytesIO()
-            qr_image.save(qr_temp_buffer, format='PNG')
-            qr_temp_buffer.seek(0)
-            
+            # Draw QR code from transparent image (already has transparency)
+            qr_buffer.seek(0)
             c.drawImage(
-                ImageReader(qr_temp_buffer),
+                ImageReader(qr_buffer),
                 x, y,
                 width=qr_width,
                 height=qr_height,
                 mask='auto'
             )
-            
-            # Add file info text if provided
-            if file_info:
-                text_y = y - 15
-                if 'reference' in file_info:
-                    c.drawString(x, text_y, f"Ref: {file_info['reference']}")
-                    text_y -= 12
-                if 'title' in file_info:
-                    # Truncate title if too long
-                    title = file_info['title'][:30] + '...' if len(file_info['title']) > 30 else file_info['title']
-                    c.drawString(x, text_y, f"Title: {title}")
-                    text_y -= 12
-                if 'downloaded_by' in file_info:
-                    c.drawString(x, text_y, f"Downloaded by: {file_info['downloaded_by']}")
-                    text_y -= 12
-                from datetime import datetime
-                c.drawString(x, text_y, f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
             
             c.save()
             watermark_buffer.seek(0)

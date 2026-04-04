@@ -384,6 +384,13 @@ class FileRequest(models.Model):
             message=f'Your return of file {self.file.reference} has been rejected. ' +
                     f'Reason: {reason}. Please contact registry for more information.'
         )
+        
+        # Send email notification
+        try:
+            from register.emails import send_return_rejected_notification
+            send_return_rejected_notification(self)
+        except Exception as e:
+            print(f"Email notification failed: {e}")
 
     def resubmit_return(self, notes=''):
         """
@@ -509,8 +516,13 @@ class File(models.Model):
             self.generate_qr_code()
     
     def generate_qr_code(self):
-        """Generate QR code containing file reference"""
-        qr = qrcode.QRCode(version=1, box_size=10, border=5)
+        """Generate QR code containing file reference with high error correction"""
+        qr = qrcode.QRCode(
+            version=1,
+            box_size=10,
+            border=5,
+            error_correction=qrcode.constants.ERROR_CORRECT_H  # High error correction
+        )
         qr.add_data(str(self.uuid))
         qr.make(fit=True)
         
