@@ -47,6 +47,9 @@
             </div>
             <div class="col-md-3 text-end">
                 <a href="{% url 'file_list' %}" class="btn btn-outline-secondary">Clear</a>
+                <a href="{% url 'file_list' %}?export=csv{% if request.GET.search %}&search={{ request.GET.search }}{% endif %}{% if request.GET.status %}&status={{ request.GET.status }}{% endif %}{% if request.GET.tag %}&tag={{ request.GET.tag }}{% endif %}" class="btn btn-success" title="Export to CSV">
+                    <i class="bi bi-download me-1"></i>Export
+                </a>
             </div>
         </form>
     </div>

@@ -1,0 +1,96 @@
+{% extends 'register/base.html' %}
+
+{% block title %}Webhooks - File Tracking System{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-8">
+        <h2><i class="bi bi-link-45deg me-2"></i>Webhooks</h2>
+    </div>
+    <div class="col-md-4 text-end">
+        <a href="{% url 'webhook_create' %}" class="btn btn-primary">
+            <i class="bi bi-plus-lg me-1"></i>Add Webhook
+        </a>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle me-2"></i>
+            Webhooks notify external systems when events occur in the File Tracking System.
+            Configure webhooks to receive HTTP callbacks for file checkouts, checkins, uploads, and more.
+        </div>
+    </div>
+</div>
+
+<div class="card border-0 shadow-sm">
+    <div class="card-body">
+        {% if webhooks %}
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>URL</th>
+                        <th>Events</th>
+                        <th>Status</th>
+                        <th>Last Triggered</th>
+                        <th>Failures</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for webhook in webhooks %}
+                    <tr>
+                        <td><strong>{{ webhook.name }}</strong></td>
+                        <td><small>{{ webhook.url|truncatechars:40 }}</small></td>
+                        <td>
+                            {% for event in webhook.event_types %}
+                                <span class="badge bg-secondary">{{ event }}</span>
+                            {% endfor %}
+                        </td>
+                        <td>
+                            {% if webhook.is_active %}
+                                <span class="badge bg-success">Active</span>
+                            {% else %}
+                                <span class="badge bg-secondary">Inactive</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if webhook.last_triggered %}
+                                <small>{{ webhook.last_triggered|date:"M d, H:i" }}</small>
+                            {% else %}
+                                <small class="text-muted">Never</small>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if webhook.failure_count > 0 %}
+                                <span class="badge bg-danger">{{ webhook.failure_count }}</span>
+                            {% else %}
+                                <span class="badge bg-success">0</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <a href="{% url 'webhook_detail' webhook.pk %}" class="btn btn-sm btn-outline-primary">View</a>
+                            <a href="{% url 'webhook_test' webhook.pk %}" class="btn btn-sm btn-outline-info">Test</a>
+                            <a href="{% url 'webhook_toggle' webhook.pk %}" class="btn btn-sm btn-outline-{% if webhook.is_active %}warning{% else %}success{% endif %}">
+                                {% if webhook.is_active %}Disable{% else %}Enable{% endif %}
+                            </a>
+                            <a href="{% url 'webhook_delete' webhook.pk %}" class="btn btn-sm btn-outline-danger">Delete</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-5">
+            <i class="bi bi-link-45deg text-muted" style="font-size: 48px;"></i>
+            <p class="text-muted mt-3">No webhooks configured</p>
+            <a href="{% url 'webhook_create' %}" class="btn btn-primary">Create First Webhook</a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

@@ -2,6 +2,8 @@ from django.urls import path, include
 from django.contrib.auth import views as auth_views
 from rest_framework.routers import DefaultRouter
 from . import views
+from .calendar import FileCalendarView
+from . import webhook_views
 from .api import (
     DepartmentViewSet, FileViewSet, FileMovementViewSet,
     FileRequestViewSet, NotificationViewSet, ActivityLogViewSet,
@@ -41,9 +43,11 @@ urlpatterns = [
     
     # Dashboard and file views
     path('', views.DashboardView.as_view(), name='dashboard'),
+    path('calendar/', FileCalendarView.as_view(), name='calendar'),
     path('files/', views.FileListView.as_view(), name='file_list'),
     path('files/upload/', views.FileCreateView.as_view(), name='file_upload'),
     path('files/<uuid:uuid>/', views.FileDetailView.as_view(), name='file_detail'),
+    path('files/<uuid:uuid>/comments/', views.FileCommentView.as_view(), name='file_comments'),
     path('files/<uuid:uuid>/checkout/', views.CheckoutView.as_view(), name='checkout'),
     path('files/<uuid:uuid>/checkin/', views.CheckinView.as_view(), name='checkin'),
     path('files/<uuid:uuid>/qr/', views.QRCodeView.as_view(), name='qr_code'),
@@ -80,6 +84,7 @@ urlpatterns = [
     path('overdue/', views.OverdueListView.as_view(), name='overdue_list'),
     path('audit/', views.AuditReportView.as_view(), name='audit_report'),
     path('activity/', views.ActivityLogListView.as_view(), name='activity_log'),
+    path('audit-trail/', views.AuditTrailView.as_view(), name='audit_trail'),
     
     # File versioning and archives
     path('files/<uuid:uuid>/archive/', views.FileArchiveView.as_view(), name='file_archive'),
@@ -98,6 +103,14 @@ urlpatterns = [
     # Tags management
     path('tags/', views.TagListView.as_view(), name='tag_list'),
     path('tags/create/', views.TagCreateView.as_view(), name='tag_create'),
+    
+    # Webhooks management
+    path('webhooks/', webhook_views.WebhookListView.as_view(), name='webhook_list'),
+    path('webhooks/create/', webhook_views.WebhookCreateView.as_view(), name='webhook_create'),
+    path('webhooks/<int:pk>/', webhook_views.WebhookDetailView.as_view(), name='webhook_detail'),
+    path('webhooks/<int:pk>/delete/', webhook_views.WebhookDeleteView.as_view(), name='webhook_delete'),
+    path('webhooks/<int:pk>/test/', webhook_views.test_webhook, name='webhook_test'),
+    path('webhooks/<int:pk>/toggle/', webhook_views.toggle_webhook, name='webhook_toggle'),
     path('tags/<int:pk>/edit/', views.TagUpdateView.as_view(), name='tag_edit'),
     path('tags/<int:pk>/delete/', views.TagDeleteView.as_view(), name='tag_delete'),
     path('files/<uuid:uuid>/add-tag/', views.add_tag_to_file, name='add_tag_to_file'),

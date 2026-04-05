@@ -1,0 +1,119 @@
+{% extends 'register/base.html' %}
+
+{% block title %}{{ webhook.name }} - Webhook Details{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-8">
+        <h2><i class="bi bi-link-45deg me-2"></i>{{ webhook.name }}</h2>
+    </div>
+    <div class="col-md-4 text-end">
+        <a href="{% url 'webhook_list' %}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-1"></i>Back to Webhooks
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-header bg-light">
+                <h5 class="mb-0">Configuration</h5>
+            </div>
+            <div class="card-body">
+                <dl class="row">
+                    <dt class="col-sm-4">URL</dt>
+                    <dd class="col-sm-8">{{ webhook.url }}</dd>
+                    
+                    <dt class="col-sm-4">Secret</dt>
+                    <dd class="col-sm-8">{% if webhook.secret %}***configured***{% else %}Not set{% endif %}</dd>
+                    
+                    <dt class="col-sm-4">Status</dt>
+                    <dd class="col-sm-8">
+                        {% if webhook.is_active %}
+                            <span class="badge bg-success">Active</span>
+                        {% else %}
+                            <span class="badge bg-secondary">Inactive</span>
+                        {% endif %}
+                    </dd>
+                    
+                    <dt class="col-sm-4">Events</dt>
+                    <dd class="col-sm-8">
+                        {% for event in webhook.event_types %}
+                            <span class="badge bg-primary">{{ event }}</span>
+                        {% endfor %}
+                    </dd>
+                    
+                    <dt class="col-sm-4">Created</dt>
+                    <dd class="col-sm-8">{{ webhook.created_at|date:"M d, Y H:i" }}</dd>
+                    
+                    <dt class="col-sm-4">Last Triggered</dt>
+                    <dd class="col-sm-8">{% if webhook.last_triggered %}{{ webhook.last_triggered|date:"M d, Y H:i" }}{% else %}Never{% endif %}</dd>
+                    
+                    <dt class="col-sm-4">Failures</dt>
+                    <dd class="col-sm-8">
+                        {% if webhook.failure_count > 0 %}
+                            <span class="badge bg-danger">{{ webhook.failure_count }}</span>
+                        {% else %}
+                            <span class="badge bg-success">0</span>
+                        {% endif %}
+                    </dd>
+                </dl>
+            </div>
+            <div class="card-footer">
+                <a href="{% url 'webhook_test' webhook.pk %}" class="btn btn-info btn-sm">Test Webhook</a>
+                <a href="{% url 'webhook_toggle' webhook.pk %}" class="btn btn-{% if webhook.is_active %}warning{% else %}success{% endif %} btn-sm">
+                    {% if webhook.is_active %}Disable{% else %}Enable{% endif %}
+                </a>
+                <a href="{% url 'webhook_delete' webhook.pk %}" class="btn btn-danger btn-sm">Delete</a>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-light">
+                <h5 class="mb-0">Delivery History</h5>
+            </div>
+            <div class="card-body p-0">
+                {% if deliveries %}
+                <div class="table-responsive">
+                    <table class="table table-sm mb-0">
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>Event</th>
+                                <th>Status</th>
+                                <th>Response</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for delivery in deliveries %}
+                            <tr>
+                                <td><small>{{ delivery.created_at|date:"M d H:i" }}</small></td>
+                                <td><small>{{ delivery.event_type }}</small></td>
+                                <td>
+                                    {% if delivery.status == 'success' %}
+                                        <span class="badge bg-success">Success</span>
+                                    {% elif delivery.status == 'failed' %}
+                                        <span class="badge bg-danger">Failed</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">Pending</span>
+                                    {% endif %}
+                                </td>
+                                <td><small>{% if delivery.response_code %}{{ delivery.response_code }}{% else %}-{% endif %}</small></td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-4 text-muted">
+                    No deliveries yet
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

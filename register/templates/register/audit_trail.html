@@ -1,0 +1,251 @@
+{% extends 'register/base.html' %}
+
+{% block title %}Audit Trail - File Tracking System{% endblock %}
+
+{% block extra_css %}
+<style>
+    .timeline {
+        position: relative;
+        padding-left: 30px;
+    }
+    .timeline::before {
+        content: '';
+        position: absolute;
+        left: 8px;
+        top: 0;
+        bottom: 0;
+        width: 2px;
+        background: #dee2e6;
+    }
+    .timeline-item {
+        position: relative;
+        margin-bottom: 20px;
+    }
+    .timeline-item::before {
+        content: '';
+        position: absolute;
+        left: -26px;
+        top: 5px;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background: #fff;
+        border: 2px solid #6c757d;
+    }
+    .timeline-item.login::before { border-color: #0d6efd; background: #0d6efd; }
+    .timeline-item.logout::before { border-color: #6c757d; background: #6c757d; }
+    .timeline-item.file_download::before { border-color: #198754; background: #198754; }
+    .timeline-item.file_checkout::before { border-color: #ffc107; background: #ffc107; }
+    .timeline-item.file_checkin::before { border-color: #0dcaf0; background: #0dcaf0; }
+    .timeline-item.request_approve::before { border-color: #198754; background: #198754; }
+    .timeline-item.request_reject::before { border-color: #dc3545; background: #dc3545; }
+    .timeline-item.user_create::before { border-color: #0d6efd; background: #0d6efd; }
+    .timeline-item.comment_added::before { border-color: #6f42c1; background: #6f42c1; }
+    
+    .timeline-date {
+        font-size: 12px;
+        color: #6c757d;
+        margin-bottom: 5px;
+    }
+    .timeline-content {
+        background: #f8f9fa;
+        border-radius: 8px;
+        padding: 12px;
+    }
+    .timeline-user {
+        font-weight: 600;
+        color: #212529;
+    }
+    .timeline-action {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 11px;
+        font-weight: 500;
+        margin-left: 8px;
+    }
+    .timeline-action.login { background: #0d6efd20; color: #0d6efd; }
+    .timeline-action.logout { background: #6c757d20; color: #6c757d; }
+    .timeline-action.file_download { background: #19875420; color: #198754; }
+    .timeline-action.file_checkout { background: #ffc10720; color: #856404; }
+    .timeline-action.file_checkin { background: #0dcaf020; color: #0dcaf0; }
+    .timeline-action.request_approve { background: #19875420; color: #198754; }
+    .timeline-action.request_reject { background: #dc354520; color: #dc3545; }
+    .timeline-action.user_create { background: #0d6efd20; color: #0d6efd; }
+    .timeline-action.comment_added { background: #6f42c120; color: #6f42c1; }
+    
+    .timeline-description {
+        margin-top: 5px;
+        color: #495057;
+    }
+    .timeline-meta {
+        font-size: 11px;
+        color: #6c757d;
+        margin-top: 5px;
+    }
+    .date-group {
+        margin-bottom: 30px;
+    }
+    .date-group-title {
+        font-weight: 600;
+        color: #212529;
+        margin-bottom: 15px;
+        padding-bottom: 8px;
+        border-bottom: 2px solid #dee2e6;
+    }
+    .filter-pills {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-bottom: 20px;
+    }
+    .filter-pill {
+        padding: 6px 12px;
+        border-radius: 20px;
+        font-size: 13px;
+        text-decoration: none;
+        background: #e9ecef;
+        color: #495057;
+        transition: all 0.2s;
+    }
+    .filter-pill:hover, .filter-pill.active {
+        background: #0d6efd;
+        color: white;
+    }
+    .filter-pill.login { background: #0d6efd20; color: #0d6efd; }
+    .filter-pill.logout { background: #6c757d20; color: #6c757d; }
+    .filter-pill.file { background: #19875420; color: #198754; }
+    .filter-pill.request { background: #ffc10720; color: #856404; }
+    .filter-pill.user { background: #6f42c120; color: #6f42c1; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-8">
+        <h2><i class="bi bi-clock-history me-2"></i>Audit Trail</h2>
+    </div>
+    <div class="col-md-4 text-end">
+        <a href="{% url 'audit_report' %}" class="btn btn-outline-secondary">
+            <i class="bi bi-file-earmark-text me-1"></i>Detailed Report
+        </a>
+    </div>
+</div>
+
+<!-- Filter Pills -->
+<div class="filter-pills">
+    <a href="?" class="filter-pill {% if not request.GET.action %}active{% endif %}">All</a>
+    <a href="?action=login" class="filter-pill login {% if request.GET.action == 'login' %}active{% endif %}">Logins</a>
+    <a href="?action=logout" class="filter-pill logout {% if request.GET.action == 'logout' %}active{% endif %}">Logouts</a>
+    <a href="?action=file_download" class="filter-pill file {% if request.GET.action == 'file_download' %}active{% endif %}">Downloads</a>
+    <a href="?action=file_checkout" class="filter-pill file {% if request.GET.action == 'file_checkout' %}active{% endif %}">Checkouts</a>
+    <a href="?action=file_checkin" class="filter-pill file {% if request.GET.action == 'file_checkin' %}active{% endif %}">Returns</a>
+    <a href="?action=request_approve" class="filter-pill request {% if request.GET.action == 'request_approve' %}active{% endif %}">Approvals</a>
+    <a href="?action=user_create" class="filter-pill user {% if request.GET.action == 'user_create' %}active{% endif %}">User Events</a>
+</div>
+
+<!-- Filters -->
+<div class="card border-0 shadow-sm mb-4">
+    <div class="card-body">
+        <form method="get" class="row g-3">
+            <div class="col-md-3">
+                <label class="form-label">User</label>
+                <select name="user" class="form-select">
+                    <option value="">All Users</option>
+                    {% for user in users %}
+                    <option value="{{ user.id }}" {% if request.GET.user == user.id|stringformat:"s" %}selected{% endif %}>
+                        {{ user.username }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Action Type</label>
+                <select name="action" class="form-select">
+                    <option value="">All Actions</option>
+                    {% for value, label in action_choices %}
+                    <option value="{{ value }}" {% if request.GET.action == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">From Date</label>
+                <input type="date" name="date_from" class="form-control" value="{{ request.GET.date_from }}">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">To Date</label>
+                <input type="date" name="date_to" class="form-control" value="{{ request.GET.date_to }}">
+            </div>
+            <div class="col-md-2 d-flex align-items-end">
+                <button type="submit" class="btn btn-primary w-100">Filter</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Timeline View -->
+<div class="card border-0 shadow-sm">
+    <div class="card-body">
+        {% if activities %}
+            {% regroup activities by timestamp|date:"Y-m-d" as activities_by_date %}
+            
+            {% for date_group in activities_by_date %}
+            <div class="date-group">
+                <div class="date-group-title">
+                    <i class="bi bi-calendar3 me-2"></i>
+                    {{ date_group.grout|default:date_group.list.0.timestamp|date:"F d, Y" }}
+                    <span class="badge bg-secondary ms-2">{{ date_group.list|length }} events</span>
+                </div>
+                
+                <div class="timeline">
+                    {% for activity in date_group.list %}
+                    <div class="timeline-item {{ activity.action }}">
+                        <div class="timeline-date">
+                            <i class="bi bi-clock me-1"></i>
+                            {{ activity.timestamp|date:"H:i:s" }}
+                        </div>
+                        <div class="timeline-content">
+                            <span class="timeline-user">
+                                <i class="bi bi-person me-1"></i>{{ activity.user.get_full_name|default:activity.user.username }}
+                            </span>
+                            <span class="timeline-action {{ activity.action }}">
+                                {{ activity.get_action_display }}
+                            </span>
+                            <div class="timeline-description">
+                                {{ activity.description }}
+                            </div>
+                            <div class="timeline-meta">
+                                <i class="bi bi-geo-alt me-1"></i>{{ activity.ip_address|default:"Unknown IP" }}
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endfor %}
+            
+            <!-- Pagination -->
+            {% if page_obj.has_other_pages %}
+            <nav class="mt-4">
+                <ul class="pagination justify-content-center">
+                    {% if page_obj.has_previous %}
+                    <li class="page-item"><a class="page-link" href="?page=1">First</a></li>
+                    <li class="page-item"><a class="page-link" href="?page={{ page_obj.previous_page_number }}">Previous</a></li>
+                    {% endif %}
+                    <li class="page-item active"><span class="page-link">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span></li>
+                    {% if page_obj.has_next %}
+                    <li class="page-item"><a class="page-link" href="?page={{ page_obj.next_page_number }}">Next</a></li>
+                    <li class="page-item"><a class="page-link" href="?page={{ page_obj.paginator.num_pages }}">Last</a></li>
+                    {% endif %}
+                </ul>
+            </nav>
+            {% endif %}
+        {% else %}
+            <div class="text-center py-5">
+                <i class="bi bi-inbox text-muted" style="font-size: 48px;"></i>
+                <p class="text-muted mt-3">No activity logs found</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

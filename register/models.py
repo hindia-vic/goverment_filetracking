@@ -166,6 +166,12 @@ class FileRequest(models.Model):
     
     class Meta:
         ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['status', 'created_at']),
+            models.Index(fields=['requesting_user', 'status']),
+            models.Index(fields=['file', 'status']),
+            models.Index(fields=['status', 'processed_by']),
+        ]
     
     def __str__(self):
         return f"Request #{self.id} - {self.file.reference} by {self.requesting_user.username}"
@@ -498,6 +504,10 @@ class File(models.Model):
         indexes = [
             models.Index(fields=['status', 'due_date']),
             models.Index(fields=['uuid']),
+            models.Index(fields=['status', 'department']),
+            models.Index(fields=['current_holder', 'status']),
+            models.Index(fields=['created_at', 'status']),
+            models.Index(fields=['year', 'department']),
         ]
     
     def save(self, *args, **kwargs):
@@ -789,6 +799,7 @@ class ActivityLog(models.Model):
         ('password_reset', 'Password Reset'),
         ('profile_update', 'Profile Updated'),
         ('file_view', 'Viewed File'),
+        ('file_download', 'Downloaded File'),
         ('file_upload', 'Uploaded File'),
         ('file_checkout', 'Checked Out File'),
         ('file_checkin', 'Returned File'),
@@ -800,6 +811,9 @@ class ActivityLog(models.Model):
         ('user_update', 'Updated User'),
         ('department_create', 'Created Department'),
         ('department_update', 'Updated Department'),
+        ('comment_added', 'Added Comment'),
+        ('file_return_verified', 'Return Verified'),
+        ('file_return_rejected', 'Return Rejected'),
     ]
     
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='activities')
@@ -809,6 +823,7 @@ class ActivityLog(models.Model):
     user_agent = models.TextField(blank=True)
     metadata = models.JSONField(default=dict, blank=True)
     timestamp = models.DateTimeField(auto_now_add=True)
+    is_archived = models.BooleanField(default=False, help_text="Marked as archived for retention policy")
     
     class Meta:
         ordering = ['-timestamp']
@@ -836,6 +851,82 @@ class FileTag(models.Model):
     
     def __str__(self):
         return self.name
+
+
+class FileComment(models.Model):
+    """Comments/notes on files for collaboration"""
+    file = models.ForeignKey(File, on_delete=models.CASCADE, related_name='comments')
+    author = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='file_comments')
+    content = models.TextField()
+    is_internal = models.BooleanField(
+        default=False,
+        help_text="Internal comments are only visible to registry/admin"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name_plural = 'File comments'
+    
+    def __str__(self):
+        return f"Comment by {self.author} on {self.file.reference}"
+
+
+class Webhook(models.Model):
+    """Store webhook configurations for external systems"""
+    
+    EVENT_TYPES = [
+        ('file_checkout', 'File Checked Out'),
+        ('file_checkin', 'File Checked In'),
+        ('file_upload', 'New File Uploaded'),
+        ('request_approved', 'Request Approved'),
+        ('request_rejected', 'Request Rejected'),
+        ('request_completed', 'Request Completed'),
+        ('file_returned', 'File Return Verified'),
+    ]
+    
+    name = models.CharField(max_length=100, help_text="Webhook name for identification")
+    url = models.URLField(help_text="External system URL to receive webhook")
+    secret = models.CharField(max_length=128, blank=True, help_text="Secret key for signature verification")
+    event_types = models.JSONField(default=list, help_text="List of events to trigger this webhook")
+    is_active = models.BooleanField(default=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='webhooks')
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_triggered = models.DateTimeField(null=True, blank=True)
+    last_status = models.CharField(max_length=20, blank=True)
+    failure_count = models.IntegerField(default=0)
+    
+    class Meta:
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"{self.name} - {self.url}"
+
+
+class WebhookDelivery(models.Model):
+    """Track webhook delivery attempts"""
+    
+    STATUS_CHOICES = [
+        ('success', 'Success'),
+        ('failed', 'Failed'),
+        ('pending', 'Pending'),
+    ]
+    
+    webhook = models.ForeignKey(Webhook, on_delete=models.CASCADE, related_name='deliveries')
+    event_type = models.CharField(max_length=30)
+    payload = models.JSONField()
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    response_code = models.IntegerField(null=True, blank=True)
+    response_body = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"{self.event_type} - {self.status}"
 
 
 # Add tags field to File model

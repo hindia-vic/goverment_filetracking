@@ -25,7 +25,7 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 from reportlab.pdfgen import canvas
 
-from .models import File, FileMovement, Department, UserProfile, Notification, FileRequest, ActivityLog, FileVersion, FileTag
+from .models import File, FileMovement, Department, UserProfile, Notification, FileRequest, ActivityLog, FileVersion, FileTag, FileComment
 from django.contrib.auth.models import User
 from .forms import (
     FileUploadForm, CheckoutForm, CheckinForm, AuditFilterForm,
@@ -295,6 +295,20 @@ class FileRequestListView(LoginRequiredMixin, View):
         elif hasattr(request.user, 'profile') and request.user.profile.role in ['registry', 'admin']:
             user_is_admin_or_registry = True
             
+        # Handle CSV export
+        if request.GET.get('export') == 'csv':
+            from .export_utils import export_requests_to_csv
+            if user_is_admin_or_registry:
+                status_filter = request.GET.get('status', 'pending')
+                requests = FileRequest.objects.filter(
+                    status=status_filter
+                ).select_related('file', 'requesting_user', 'requesting_department', 'processed_by')
+            else:
+                requests = FileRequest.objects.filter(
+                    requesting_user=request.user
+                ).select_related('file', 'requesting_user', 'requesting_department', 'processed_by')
+            return export_requests_to_csv(requests)
+        
         if not user_is_admin_or_registry:
             # Department users only see their own requests
             requests = FileRequest.objects.filter(
@@ -853,6 +867,15 @@ class FileListView(LoginRequiredMixin, ListView):
         context['available_tags'] = FileTag.objects.all()
         context['checked_out_count'] = File.objects.filter(status='checked_out').count()
         return context
+    
+    def get(self, request, *args, **kwargs):
+        # Handle CSV export
+        if request.GET.get('export') == 'csv':
+            from .export_utils import export_files_to_csv
+            queryset = self.get_queryset()
+            return export_files_to_csv(queryset)
+        
+        return super().get(request, *args, **kwargs)
 
 
 class FileDetailView(LoginRequiredMixin, DetailView):
@@ -965,6 +988,14 @@ class CheckoutView(LoginRequiredMixin, View):
                 f'File {file.reference} checked out to {form.cleaned_data["department"]}. '
                 f'Due date: {file.due_date.strftime("%Y-%m-%d")}'
             )
+            
+            # Trigger webhook
+            try:
+                from register.webhook_service import WebhookService
+                WebhookService.trigger_file_checkout(file, request.user)
+            except Exception:
+                pass
+            
             return redirect('file_detail', uuid=uuid)
         
         return render(request, self.template_name, {'file': file, 'form': form})
@@ -1057,6 +1088,14 @@ class CheckinView(LoginRequiredMixin, View):
                 # This handles cases where file was checked out directly without a request
                 file.check_in(user=request.user, notes=form.cleaned_data['notes'])
                 messages.success(request, f'File {file.reference} returned to registry.')
+                
+                # Trigger webhook
+                try:
+                    from register.webhook_service import WebhookService
+                    WebhookService.trigger_file_checkin(file, request.user)
+                except Exception:
+                    pass
+                
                 return redirect('file_detail', uuid=uuid)
         
         return render(request, self.template_name, {
@@ -1509,6 +1548,63 @@ class ActivityLogListView(LoginRequiredMixin, ListView):
     
     def get_queryset(self):
         queryset = ActivityLog.objects.select_related('user').all()
+        
+        # Filter by user
+        user_id = self.request.GET.get('user')
+        if user_id:
+            queryset = queryset.filter(user_id=user_id)
+        
+        # Filter by action type
+        action = self.request.GET.get('action')
+        if action:
+            queryset = queryset.filter(action=action)
+        
+        # Filter by date range
+        date_from = self.request.GET.get('date_from')
+        if date_from:
+            queryset = queryset.filter(timestamp__date__gte=date_from)
+        
+        date_to = self.request.GET.get('date_to')
+        if date_to:
+            queryset = queryset.filter(timestamp__date__lte=date_to)
+        
+        return queryset
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['action_choices'] = ActivityLog.ACTION_TYPES
+        context['users'] = User.objects.filter(is_active=True)
+        return context
+    
+    def get(self, request, *args, **kwargs):
+        # Handle CSV export
+        if request.GET.get('export') == 'csv':
+            from .export_utils import export_activity_to_csv
+            queryset = self.get_queryset()
+            return export_activity_to_csv(queryset)
+        
+        return super().get(request, *args, **kwargs)
+
+
+class AuditTrailView(LoginRequiredMixin, ListView):
+    """Visual timeline view of activity logs - Admin/Registry only"""
+    model = ActivityLog
+    template_name = 'register/audit_trail.html'
+    context_object_name = 'activities'
+    paginate_by = 50
+    
+    def dispatch(self, request, *args, **kwargs):
+        # Check if user is admin or registry
+        if not (request.user.is_superuser or (
+            hasattr(request.user, 'profile') and 
+            request.user.profile.role in ['registry', 'admin']
+        )):
+            messages.error(request, 'You do not have permission to view the audit trail.')
+            return redirect('dashboard')
+        return super().dispatch(request, *args, **kwargs)
+    
+    def get_queryset(self):
+        queryset = ActivityLog.objects.select_related('user').order_by('-timestamp')
         
         # Filter by user
         user_id = self.request.GET.get('user')
@@ -2127,3 +2223,61 @@ def get_client_ip(request):
     else:
         ip = request.META.get('REMOTE_ADDR')
     return ip
+
+
+class FileCommentView(LoginRequiredMixin, View):
+    """Add/view comments on a file"""
+    template_name = 'register/file_comments.html'
+    
+    def get(self, request, uuid):
+        file = get_object_or_404(File, uuid=uuid)
+        
+        # Get comments - hide internal comments from non-privileged users
+        if request.user.is_superuser or (
+            hasattr(request.user, 'profile') and 
+            request.user.profile.role in ['registry', 'admin']
+        ):
+            comments = file.comments.select_related('author').all()
+        else:
+            comments = file.comments.select_related('author').filter(is_internal=False)
+        
+        return render(request, self.template_name, {
+            'file': file,
+            'comments': comments,
+        })
+    
+    def post(self, request, uuid):
+        file = get_object_or_404(File, uuid=uuid)
+        
+        # Check if user can comment
+        can_add_internal = request.user.is_superuser or (
+            hasattr(request.user, 'profile') and 
+            request.user.profile.role in ['registry', 'admin']
+        )
+        
+        content = request.POST.get('content', '').strip()
+        if not content:
+            messages.error(request, 'Comment cannot be empty.')
+            return redirect('file_comments', uuid=uuid)
+        
+        is_internal = request.POST.get('is_internal') == 'on' and can_add_internal
+        
+        # Create comment
+        FileComment.objects.create(
+            file=file,
+            author=request.user,
+            content=content,
+            is_internal=is_internal
+        )
+        
+        messages.success(request, 'Comment added successfully.')
+        
+        # Log activity
+        ActivityLog.objects.create(
+            user=request.user,
+            action='comment_added',
+            description=f"Added comment to file: {file.reference}",
+            ip_address=get_client_ip(request)
+        )
+        
+        return redirect('file_comments', uuid=uuid)

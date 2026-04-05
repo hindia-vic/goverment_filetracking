@@ -145,68 +145,46 @@
                             <div class="d-flex align-items-center p-3 bg-warning bg-opacity-10 rounded hover-effect">
                                 <i class="bi bi-clipboard-check text-warning fs-4 me-3"></i>
                                 <div>
-                                    <strong class="d-block">Process Requests</strong>
-                                    <small class="text-muted">{{ pending_approvals|length }} pending</small>
+                                    <strong class="d-block">File Requests</strong>
+                                    <small class="text-muted">Process requests</small>
                                 </div>
                             </div>
                         </a>
                     </div>
+                    {% endif %}
                     
                     <div class="col-md-4">
-                        <a href="{% url 'department_list' %}" class="text-decoration-none">
-                            <div class="d-flex align-items-center p-3 bg-info bg-opacity-10 rounded hover-effect">
-                                <i class="bi bi-building text-info fs-4 me-3"></i>
-                                <div>
-                                    <strong class="d-block">Departments</strong>
-                                    <small class="text-muted">{{ total_departments }} active</small>
-                                </div>
-                            </div>
-                        </a>
-                    </div>
-                    
-                    <div class="col-md-4">
-                        <a href="{% url 'user_list' %}" class="text-decoration-none">
-                            <div class="d-flex align-items-center p-3 bg-purple bg-opacity-10 rounded hover-effect" style="background-color: rgba(128, 0, 128, 0.1);">
-                                <i class="bi bi-people text-purple fs-4" style="color: #800080;"></i>
-                                <div class="ms-3">
-                                    <strong class="d-block">Manage Users</strong>
-                                    <small class="text-muted">View all users</small>
-                                </div>
-                            </div>
-                        </a>
-                    </div>
-                    
-                    <div class="col-md-4">
-                        <a href="{% url 'activity_log' %}" class="text-decoration-none">
+                        <a href="{% url 'calendar' %}" class="text-decoration-none">
                             <div class="d-flex align-items-center p-3 bg-secondary bg-opacity-10 rounded hover-effect">
-                                <i class="bi bi-activity text-secondary fs-4 me-3"></i>
+                                <i class="bi bi-calendar text-secondary fs-4 me-3"></i>
                                 <div>
-                                    <strong class="d-block">Activity Logs</strong>
-                                    <small class="text-muted">Track user activities</small>
+                                    <strong class="d-block">Calendar</strong>
+                                    <small class="text-muted">View due dates</small>
                                 </div>
                             </div>
                         </a>
                     </div>
                     
+                    {% if user.is_superuser or user.profile.role == 'registry' or user.profile.role == 'admin' %}
                     <div class="col-md-4">
-                        <a href="{% url 'file_list' %}?status=archived" class="text-decoration-none">
+                        <a href="{% url 'audit_trail' %}" class="text-decoration-none">
                             <div class="d-flex align-items-center p-3 bg-dark bg-opacity-10 rounded hover-effect">
-                                <i class="bi bi-archive text-dark fs-4 me-3"></i>
+                                <i class="bi bi-clock-history text-dark fs-4 me-3"></i>
                                 <div>
-                                    <strong class="d-block">Archived Files</strong>
-                                    <small class="text-muted">{{ archived_files }} archived</small>
+                                    <strong class="d-block">Audit Trail</strong>
+                                    <small class="text-muted">View activity timeline</small>
                                 </div>
                             </div>
                         </a>
                     </div>
                     
                     <div class="col-md-4">
-                        <a href="{% url 'audit_report' %}" class="text-decoration-none">
-                            <div class="d-flex align-items-center p-3 bg-secondary bg-opacity-10 rounded hover-effect">
-                                <i class="bi bi-journal-text text-secondary fs-4 me-3"></i>
+                        <a href="{% url 'webhook_list' %}" class="text-decoration-none">
+                            <div class="d-flex align-items-center p-3 bg-info bg-opacity-10 rounded hover-effect">
+                                <i class="bi bi-link-45deg text-info fs-4 me-3"></i>
                                 <div>
-                                    <strong class="d-block">Audit Report</strong>
-                                    <small class="text-muted">View activity logs</small>
+                                    <strong class="d-block">Webhooks</strong>
+                                    <small class="text-muted">External integrations</small>
                                 </div>
                             </div>
                         </a>

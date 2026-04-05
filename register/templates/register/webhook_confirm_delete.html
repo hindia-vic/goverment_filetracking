@@ -1,0 +1,24 @@
+{% extends 'register/base.html' %}
+
+{% block title %}Delete Webhook - File Tracking System{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-8">
+        <h2><i class="bi bi-trash me-2"></i>Delete Webhook</h2>
+    </div>
+</div>
+
+<div class="card border-0 shadow-sm">
+    <div class="card-body">
+        <p>Are you sure you want to delete the webhook "<strong>{{ object.name }}</strong>"?</p>
+        <p class="text-muted">This action cannot be undone. All delivery history will also be deleted.</p>
+        
+        <form method="post">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-danger">Delete Webhook</button>
+            <a href="{% url 'webhook_list' %}" class="btn btn-secondary">Cancel</a>
+        </form>
+    </div>
+</div>
+{% endblock %}
