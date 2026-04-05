@@ -42,6 +42,74 @@ class UserProfile(models.Model):
     @property
     def is_department_user(self):
         return self.role == 'department_user'
+    
+    @property
+    def notification_preferences(self):
+        """Get notification preferences for this user"""
+        prefs, created = NotificationPreferences.objects.get_or_create(user=self.user)
+        return prefs
+
+
+class NotificationPreferences(models.Model):
+    """User notification preferences"""
+    
+    NOTIFICATION_TYPES = [
+        ('email_request_approved', 'Email - Request Approved'),
+        ('email_request_rejected', 'Email - Request Rejected'),
+        ('email_file_due', 'Email - File Due Reminder'),
+        ('email_file_overdue', 'Email - File Overdue'),
+        ('email_return_verified', 'Email - Return Verified'),
+        ('email_return_rejected', 'Email - Return Rejected'),
+        ('email_new_request', 'Email - New Request (Registry)'),
+        ('email_weekly_summary', 'Email - Weekly Summary'),
+        ('in_app_all', 'In-App - All Notifications'),
+        ('in_app_important', 'In-App - Important Only'),
+        ('in_app_none', 'In-App - No Notifications'),
+    ]
+    
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='notification_prefs')
+    
+    # Email notifications
+    email_request_approved = models.BooleanField(default=True)
+    email_request_rejected = models.BooleanField(default=True)
+    email_file_due = models.BooleanField(default=True)
+    email_file_overdue = models.BooleanField(default=True)
+    email_return_verified = models.BooleanField(default=True)
+    email_return_rejected = models.BooleanField(default=True)
+    email_new_request = models.BooleanField(default=True)
+    email_weekly_summary = models.BooleanField(default=False)
+    
+    # In-app notifications
+    in_app_notifications = models.CharField(
+        max_length=20,
+        choices=[
+            ('all', 'All'),
+            ('important', 'Important Only'),
+            ('none', 'None'),
+        ],
+        default='all'
+    )
+    
+    # Digest settings
+    digest_frequency = models.CharField(
+        max_length=20,
+        choices=[
+            ('daily', 'Daily'),
+            ('weekly', 'Weekly'),
+            ('monthly', 'Monthly'),
+            ('never', 'Never'),
+        ],
+        default='weekly'
+    )
+    
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        verbose_name = 'Notification Preferences'
+        verbose_name_plural = 'Notification Preferences'
+    
+    def __str__(self):
+        return f"Notification preferences for {self.user.username}"
 
 
 class Notification(models.Model):
@@ -927,6 +995,32 @@ class WebhookDelivery(models.Model):
     
     def __str__(self):
         return f"{self.event_type} - {self.status}"
+
+
+class APIToken(models.Model):
+    """API Token for external system authentication"""
+    
+    key = models.CharField(max_length=64, primary_key=True)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='api_tokens')
+    name = models.CharField(max_length=100, help_text="Name to identify this token")
+    description = models.TextField(blank=True, help_text="Description of what this token is for")
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_used = models.DateTimeField(null=True, blank=True)
+    expires_at = models.DateTimeField(null=True, blank=True)
+    rate_limit = models.IntegerField(default=1000, help_text="Requests per hour")
+    
+    class Meta:
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"{self.name} ({self.user.username})"
+    
+    def save(self, *args, **kwargs):
+        if not self.key:
+            import secrets
+            self.key = secrets.token_hex(32)
+        super().save(*args, **kwargs)
 
 
 # Add tags field to File model

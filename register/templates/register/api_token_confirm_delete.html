@@ -1,0 +1,24 @@
+{% extends 'register/base.html' %}
+
+{% block title %}Delete API Token{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-8">
+        <h2><i class="bi bi-trash me-2"></i>Delete API Token</h2>
+    </div>
+</div>
+
+<div class="card border-0 shadow-sm">
+    <div class="card-body">
+        <p>Are you sure you want to delete the token "<strong>{{ object.name }}</strong>"?</p>
+        <p class="text-muted">This action cannot be undone. Any applications using this token will lose access.</p>
+        
+        <form method="post">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-danger">Delete Token</button>
+            <a href="{% url 'api_token_list' %}" class="btn btn-secondary">Cancel</a>
+        </form>
+    </div>
+</div>
+{% endblock %}

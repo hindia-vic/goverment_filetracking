@@ -4,6 +4,8 @@ from rest_framework.routers import DefaultRouter
 from . import views
 from .calendar import FileCalendarView
 from . import webhook_views
+from . import api_token_views
+from . import notification_preferences_view
 from .api import (
     DepartmentViewSet, FileViewSet, FileMovementViewSet,
     FileRequestViewSet, NotificationViewSet, ActivityLogViewSet,
@@ -15,15 +17,19 @@ from .two_factor_views import (
     login_view, verify_2fa_login
 )
 
-# Create router for API viewsets
-router = DefaultRouter()
-router.register(r'departments', DepartmentViewSet)
-router.register(r'files', FileViewSet)
-router.register(r'movements', FileMovementViewSet)
-router.register(r'requests', FileRequestViewSet)
-router.register(r'notifications', NotificationViewSet)
-router.register(r'activity', ActivityLogViewSet)
-router.register(r'profiles', UserProfileViewSet)
+# Create router - wrapped in try to handle potential duplicate registration
+try:
+    router = DefaultRouter()
+    router.register(r'departments', DepartmentViewSet)
+    router.register(r'files', FileViewSet)
+    router.register(r'movements', FileMovementViewSet)
+    router.register(r'requests', FileRequestViewSet)
+    router.register(r'notifications', NotificationViewSet)
+    router.register(r'activity', ActivityLogViewSet)
+    router.register(r'profiles', UserProfileViewSet)
+except ValueError:
+    # Routes already registered, create new router but don't re-register
+    router = DefaultRouter()
 
 urlpatterns = [
     # API endpoints
@@ -111,6 +117,13 @@ urlpatterns = [
     path('webhooks/<int:pk>/delete/', webhook_views.WebhookDeleteView.as_view(), name='webhook_delete'),
     path('webhooks/<int:pk>/test/', webhook_views.test_webhook, name='webhook_test'),
     path('webhooks/<int:pk>/toggle/', webhook_views.toggle_webhook, name='webhook_toggle'),
+    
+    # API Tokens
+    path('api-tokens/', api_token_views.APITokenListView.as_view(), name='api_token_list'),
+    path('api-tokens/create/', api_token_views.APITokenCreateView.as_view(), name='api_token_create'),
+    path('api-tokens/<int:pk>/delete/', api_token_views.APITokenDeleteView.as_view(), name='api_token_delete'),
+    path('api-tokens/<int:pk>/regenerate/', api_token_views.regenerate_api_token, name='api_token_regenerate'),
+    path('api-tokens/<int:pk>/toggle/', api_token_views.toggle_api_token, name='api_token_toggle'),
     path('tags/<int:pk>/edit/', views.TagUpdateView.as_view(), name='tag_edit'),
     path('tags/<int:pk>/delete/', views.TagDeleteView.as_view(), name='tag_delete'),
     path('files/<uuid:uuid>/add-tag/', views.add_tag_to_file, name='add_tag_to_file'),
@@ -122,6 +135,7 @@ urlpatterns = [
     # Account settings and security
     path('account/', views.AccountSettingsView.as_view(), name='account_settings'),
     path('account/password/', views.ChangePasswordView.as_view(), name='change_password'),
+    path('account/notifications/', notification_preferences_view.NotificationPreferencesView.as_view(), name='notification_preferences'),
     
     # Password reset - using custom views
     path('password/reset/', auth_views.PasswordResetView.as_view(

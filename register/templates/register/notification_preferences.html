@@ -1,0 +1,132 @@
+{% extends 'register/base.html' %}
+
+{% block title %}Notification Preferences{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-8">
+        <h2><i class="bi bi-bell me-2"></i>Notification Preferences</h2>
+    </div>
+    <div class="col-md-4 text-end">
+        <a href="{% url 'account_settings' %}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-1"></i>Back to Account
+        </a>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    
+                    <h5 class="mb-3"><i class="bi bi-envelope me-2"></i>Email Notifications</h5>
+                    <p class="text-muted small mb-4">Choose which events trigger email notifications</p>
+                    
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input" id="email_request_approved" name="email_request_approved" {% if form.email_request_approved.value %}checked{% endif %}>
+                            <label class="form-check-label" for="email_request_approved">
+                                Request Approved
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input" id="email_request_rejected" name="email_request_rejected" {% if form.email_request_rejected.value %}checked{% endif %}>
+                            <label class="form-check-label" for="email_request_rejected">
+                                Request Rejected
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input" id="email_file_due" name="email_file_due" {% if form.email_file_due.value %}checked{% endif %}>
+                            <label class="form-check-label" for="email_file_due">
+                                File Due Reminder
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input" id="email_file_overdue" name="email_file_overdue" {% if form.email_file_overdue.value %}checked{% endif %}>
+                            <label class="form-check-label" for="email_file_overdue">
+                                File Overdue Alert
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input" id="email_return_verified" name="email_return_verified" {% if form.email_return_verified.value %}checked{% endif %}>
+                            <label class="form-check-label" for="email_return_verified">
+                                File Return Verified
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input" id="email_return_rejected" name="email_return_rejected" {% if form.email_return_rejected.value %}checked{% endif %}>
+                            <label class="form-check-label" for="email_return_rejected">
+                                File Return Rejected
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input" id="email_new_request" name="email_new_request" {% if form.email_new_request.value %}checked{% endif %}>
+                            <label class="form-check-label" for="email_new_request">
+                                New Request (for Registry)
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input type="checkbox" class="form-check-input" id="email_weekly_summary" name="email_weekly_summary" {% if form.email_weekly_summary.value %}checked{% endif %}>
+                            <label class="form-check-label" for="email_weekly_summary">
+                                Weekly Summary
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <hr class="my-4">
+                    
+                    <h5 class="mb-3"><i class="bi bi-app me-2"></i>In-App Notifications</h5>
+                    <p class="text-muted small mb-4">Control in-app notification display</p>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Display Mode</label>
+                        <select class="form-select" name="in_app_notifications">
+                            <option value="all" {% if form.in_app_notifications.value == 'all' %}selected{% endif %}>Show All Notifications</option>
+                            <option value="important" {% if form.in_app_notifications.value == 'important' %}selected{% endif %}>Important Only</option>
+                            <option value="none" {% if form.in_app_notifications.value == 'none' %}selected{% endif %}>No In-App Notifications</option>
+                        </select>
+                    </div>
+                    
+                    <hr class="my-4">
+                    
+                    <h5 class="mb-3"><i class="bi bi-clock me-2"></i>Digest Settings</h5>
+                    <p class="text-muted small mb-4">Receive periodic summary of activity</p>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Digest Frequency</label>
+                        <select class="form-select" name="digest_frequency">
+                            <option value="daily" {% if form.digest_frequency.value == 'daily' %}selected{% endif %}>Daily</option>
+                            <option value="weekly" {% if form.digest_frequency.value == 'weekly' %}selected{% endif %}>Weekly</option>
+                            <option value="monthly" {% if form.digest_frequency.value == 'monthly' %}selected{% endif %}>Monthly</option>
+                            <option value="never" {% if form.digest_frequency.value == 'never' %}selected{% endif %}>Never</option>
+                        </select>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-check-lg me-1"></i>Save Preferences
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-light">
+                <h6 class="mb-0"><i class="bi bi-info-circle me-2"></i>Quick Info</h6>
+            </div>
+            <div class="card-body">
+                <p class="small text-muted">
+                    Email notifications will be sent to your registered email address.
+                    In-app notifications appear in the notification bell on the navigation bar.
+                </p>
+                <p class="small text-muted">
+                    Digests provide a summary of your file activity over time.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

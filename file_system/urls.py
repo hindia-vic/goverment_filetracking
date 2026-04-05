@@ -39,10 +39,17 @@ urlpatterns = [
 ]
 
 # Serve media files in both DEBUG and production modes
-# Use the serve view directly to work regardless of DEBUG setting
+from django.views.static import serve
 urlpatterns += [
     re_path(r'^media/(?P<path>.*)$', serve, {'document_root': settings.MEDIA_ROOT}, name='media'),
 ]
-
-# Also keep the static() for DEBUG=True compatibility
 urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+
+# Serve static files  
+urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
+
+# Add re_path for static files as fallback
+from django.contrib.staticfiles.views import serve
+urlpatterns += [
+    re_path(r'^static/(?P<path>.*)$', serve, {'document_root': settings.STATIC_ROOT}, name='static'),
+]
