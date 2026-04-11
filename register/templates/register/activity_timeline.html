@@ -1,0 +1,118 @@
+{% extends 'register/base.html' %}
+
+{% block title %}Activity Timeline - File Tracking System{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h2><i class="bi bi-clock-history me-2"></i>Activity Timeline</h2>
+        <p class="text-muted">View recent file activities across the system</p>
+    </div>
+</div>
+
+<!-- Time Range Filter -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
+                <form method="get" class="d-flex align-items-center gap-3">
+                    <label class="text-muted mb-0">Show activities for:</label>
+                    <select name="days" class="form-select" style="width: auto;">
+                        <option value="7" {% if days == 7 %}selected{% endif %}>Last 7 days</option>
+                        <option value="14" {% if days == 14 %}selected{% endif %}>Last 14 days</option>
+                        <option value="30" {% if days == 30 %}selected{% endif %}>Last 30 days</option>
+                        <option value="90" {% if days == 90 %}selected{% endif %}>Last 90 days</option>
+                    </select>
+                    <button type="submit" class="btn btn-primary">Apply</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Timeline -->
+<div class="row">
+    <div class="col-12">
+        {% if timeline %}
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
+                {% for date, activities in timeline.items %}
+                <div class="timeline-day mb-4">
+                    <div class="d-flex align-items-center mb-3">
+                        <div class="badge bg-primary rounded-pill me-2">{{ date }}</div>
+                        <span class="text-muted">{{ activities|length }} activities</span>
+                    </div>
+                    
+                    {% for activity in activities %}
+                    <div class="timeline-item d-flex align-items-start mb-3 ps-4 position-relative">
+                        <!-- Timeline line -->
+                        {% if not forloop.last %}
+                        <div class="position-absolute start-0 top-0 bottom-0" style="width: 2px; background: #e2e8f0; left: 7px;"></div>
+                        {% endif %}
+                        
+                        <!-- Icon -->
+                        <div class="timeline-icon bg-{% if activity.action_type == 'checkout' %}warning{% elif activity.action_type == 'checkin' %}success{% elif activity.action_type == 'request' %}info{% else %}secondary{% endif %} bg-opacity-10 rounded-circle p-2 me-3">
+                            <i class="bi bi-{% if activity.action_type == 'checkout' %}box-arrow-right{% elif activity.action_type == 'checkin' %}box-arrow-in-left{% elif activity.action_type == 'request' %}clipboard-plus{% else %}arrow-right{% endif %} text-{% if activity.action_type == 'checkout' %}warning{% elif activity.action_type == 'checkin' %}success{% elif activity.action_type == 'request' %}info{% else %}secondary{% endif %}"></i>
+                        </div>
+                        
+                        <!-- Content -->
+                        <div class="flex-grow-1">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div>
+                                    <strong>{{ activity.file }}</strong>
+                                    <span class="text-muted">- {{ activity.file_title }}</span>
+                                </div>
+                                <small class="text-muted">{{ activity.time }}</small>
+                            </div>
+                            <p class="mb-1 small">
+                                {% if activity.action_type == 'checkout' %}
+                                    Checked out
+                                    {% if activity.to_user %}
+                                        to <span class="text-info">{{ activity.to_user }}</span>
+                                    {% endif %}
+                                {% elif activity.action_type == 'checkin' %}
+                                    Returned
+                                    {% if activity.from_user %}
+                                        by <span class="text-success">{{ activity.from_user }}</span>
+                                    {% endif %}
+                                {% elif activity.action_type == 'request' %}
+                                    Requested
+                                    {% if activity.from_user %}
+                                        by <span class="text-info">{{ activity.from_user }}</span>
+                                    {% endif %}
+                                {% else %}
+                                    {{ activity.action }}
+                                {% endif %}
+                            </p>
+                            <a href="{% url 'file_detail' activity.file_uuid %}" class="btn btn-sm btn-outline-secondary">
+                                <i class="bi bi-eye"></i> View File
+                            </a>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <i class="bi bi-clock-history"></i>
+            <h5>No activities found</h5>
+            <p>There are no file activities in the selected time period</p>
+            <a href="?days=30" class="btn btn-primary">View Last 30 Days</a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<style>
+.timeline-icon {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+</style>
+{% endblock %}

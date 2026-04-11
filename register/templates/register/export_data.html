@@ -1,0 +1,231 @@
+{% extends 'register/base.html' %}
+
+{% block title %}Export Data - File Tracking System{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h2><i class="bi bi-download me-2"></i>Export Data</h2>
+        <p class="text-muted">Export files, requests, and activity data in various formats</p>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Export Files -->
+    <div class="col-md-6 mb-4">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-white">
+                <h5 class="mb-0"><i class="bi bi-folder me-2"></i>Export Files</h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted">Export all files or filtered results to CSV or PDF</p>
+                
+                <form action="{% url 'export_files' %}" method="get">
+                    <div class="mb-3">
+                        <label class="form-label">Export Format</label>
+                        <select name="format" class="form-select">
+                            <option value="csv">CSV (Excel compatible)</option>
+                            <option value="pdf">PDF Document</option>
+                            <option value="xlsx">Excel (.xlsx)</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Filter by Status</label>
+                        <select name="status" class="form-select">
+                            <option value="">All Files</option>
+                            <option value="in_registry">In Registry</option>
+                            <option value="checked_out">Checked Out</option>
+                            <option value="overdue">Overdue</option>
+                            <option value="archived">Archived</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Department</label>
+                        <select name="department" class="form-select">
+                            <option value="">All Departments</option>
+                            {% for dept in departments %}
+                            <option value="{{ dept.id }}">{{ dept.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-download me-1"></i>Download
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Export Requests -->
+    <div class="col-md-6 mb-4">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-white">
+                <h5 class="mb-0"><i class="bi bi-clipboard me-2"></i>Export Requests</h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted">Export file request history and statistics</p>
+                
+                <form action="{% url 'export_requests' %}" method="get">
+                    <div class="mb-3">
+                        <label class="form-label">Export Format</label>
+                        <select name="format" class="form-select">
+                            <option value="csv">CSV (Excel compatible)</option>
+                            <option value="pdf">PDF Document</option>
+                            <option value="xlsx">Excel (.xlsx)</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Filter by Status</label>
+                        <select name="status" class="form-select">
+                            <option value="">All Requests</option>
+                            <option value="pending">Pending</option>
+                            <option value="approved">Approved</option>
+                            <option value="rejected">Rejected</option>
+                            <option value="completed">Completed</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Date Range</label>
+                        <div class="row g-2">
+                            <div class="col-6">
+                                <input type="date" name="date_from" class="form-control" placeholder="From">
+                            </div>
+                            <div class="col-6">
+                                <input type="date" name="date_to" class="form-control" placeholder="To">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-download me-1"></i>Download
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Export Activity -->
+    <div class="col-md-6 mb-4">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-white">
+                <h5 class="mb-0"><i class="bi bi-clock-history me-2"></i>Export Activity Log</h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted">Export system activity and audit trail</p>
+                
+                <form action="{% url 'export_activity' %}" method="get">
+                    <div class="mb-3">
+                        <label class="form-label">Export Format</label>
+                        <select name="format" class="form-select">
+                            <option value="csv">CSV (Excel compatible)</option>
+                            <option value="pdf">PDF Document</option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Time Period</label>
+                        <select name="days" class="form-select">
+                            <option value="7">Last 7 days</option>
+                            <option value="30">Last 30 days</option>
+                            <option value="90">Last 90 days</option>
+                            <option value="365">Last year</option>
+                        </select>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-download me-1"></i>Download
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Quick Stats -->
+    <div class="col-md-6 mb-4">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-header bg-white">
+                <h5 class="mb-0"><i class="bi bi-graph-up me-2"></i>Quick Statistics</h5>
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-6 mb-3">
+                        <h3 class="text-primary">{{ total_files }}</h3>
+                        <small class="text-muted">Total Files</small>
+                    </div>
+                    <div class="col-6 mb-3">
+                        <h3 class="text-success">{{ total_requests }}</h3>
+                        <small class="text-muted">Total Requests</small>
+                    </div>
+                    <div class="col-6">
+                        <h3 class="text-warning">{{ checked_out }}</h3>
+                        <small class="text-muted">Checked Out</small>
+                    </div>
+                    <div class="col-6">
+                        <h3 class="text-danger">{{ overdue }}</h3>
+                        <small class="text-muted">Overdue</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Exports -->
+<div class="row">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white">
+                <h5 class="mb-0"><i class="bi bi-history me-2"></i>Export Instructions</h5>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-info">
+                    <h6><i class="bi bi-info-circle me-2"></i>How to use exports:</h6>
+                    <ol class="mb-0">
+                        <li>Select the data type you want to export (Files, Requests, or Activity)</li>
+                        <li>Choose your preferred format (CSV for Excel, PDF for printing)</li>
+                        <li>Apply any filters if needed (by status, department, or date)</li>
+                        <li>Click Download to save the file</li>
+                    </ol>
+                </div>
+                
+                <h6 class="mt-4">Format Comparison:</h6>
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Format</th>
+                                <th>Best For</th>
+                                <th>Size Limit</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><span class="badge bg-success">CSV</span></td>
+                                <td>Import to Excel, Google Sheets,数据分析</td>
+                                <td>Unlimited</td>
+                            </tr>
+                            <tr>
+                                <td><span class="badge bg-warning text-dark">Excel</span></td>
+                                <td>Advanced Excel features, formulas</td>
+                                <td>100,000 rows</td>
+                            </tr>
+                            <tr>
+                                <td><span class="badge bg-danger">PDF</span></td>
+                                <td>Printing, sharing, reports</td>
+                                <td>50 rows/page</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

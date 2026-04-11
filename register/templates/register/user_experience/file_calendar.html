@@ -1,0 +1,69 @@
+{% extends 'register/base.html' %}
+
+{% block title %}File Calendar - {{ month_name }} {{ year }}{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h4><i class="bi bi-calendar3"></i> File Calendar</h4>
+                    <div>
+                        <a href="?year={{ year|add:'-1' }}&month={{ month }}" class="btn btn-sm btn-outline-secondary">&lt; Prev</a>
+                        <span class="mx-2">{{ month_name }} {{ year }}</span>
+                        <a href="?year={{ year }}&month={{ month|add:1 }}" class="btn btn-sm btn-outline-secondary">Next &gt;</a>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <table class="table table-bordered calendar">
+                        <thead class="thead-light">
+                            <tr>
+                                <th>Mon</th><th>Tue</th><th>Wed</th><th>Thu</th><th>Fri</th><th>Sat</th><th>Sun</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for week in calendar_days %}
+                            <tr>
+                                {% for day in week %}
+                                <td {% if day == 0 %}class="empty"{% endif %}>
+                                    {% if day > 0 %}
+                                        <div class="date">{{ day }}</div>
+                                        {% if calendar_events|dict_get:day %}
+                                        <div class="events">
+                                            {% for event in calendar_events|dict_get:day %}
+                                            <div class="badge bg-info">{{ event.file }} - {{ event.action }}</div>
+                                            {% endfor %}
+                                        </div>
+                                        {% endif %}
+                                    {% endif %}
+                                </td>
+                                {% endfor %}
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    
+                    {% if overdue_files %}
+                    <div class="alert alert-warning mt-3">
+                        <h5>Overdue Files</h5>
+                        <ul>
+                            {% for file in overdue_files %}
+                            <li>{{ file.reference }} - {{ file.title }}</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.calendar td { min-height: 80px; vertical-align: top; }
+.calendar td.empty { background: #f8f8f8; }
+.date { font-weight: bold; font-size: 12px; }
+.events { font-size: 10px; margin-top: 5px; }
+</style>
+{% endblock %}

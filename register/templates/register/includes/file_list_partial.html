@@ -1,0 +1,42 @@
+{% if files %}
+<div class="table-responsive">
+    <table class="table table-hover">
+        <thead>
+            <tr>
+                <th>Reference</th>
+                <th>Title</th>
+                <th>Status</th>
+                <th>Department</th>
+                <th>Holder</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for file in files %}
+            <tr>
+                <td><strong>{{ file.reference }}</strong></td>
+                <td>{{ file.title|truncatechars:50 }}</td>
+                <td>
+                    <span class="badge bg-{% if file.status == 'in_registry' %}success{% elif file.status == 'checked_out' %}warning{% else %}danger{% endif %}">
+                        {{ file.get_status_display }}
+                    </span>
+                </td>
+                <td>{{ file.department.name|default:"-" }}</td>
+                <td>{{ file.current_holder.username|default:"-" }}</td>
+                <td>
+                    <a href="{% url 'file_detail' file.uuid %}" class="btn btn-sm btn-outline-primary">
+                        <i class="bi bi-eye"></i>
+                    </a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="empty-state">
+    <i class="bi bi-folder-x"></i>
+    <h5>No files found</h5>
+    <p>Try adjusting your filters or search criteria</p>
+</div>
+{% endif %}

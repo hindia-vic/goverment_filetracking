@@ -1,0 +1,168 @@
+{% extends 'register/base.html' %}
+
+{% block title %}Security Dashboard - File Tracking System{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h4><i class="bi bi-shield-check"></i> Security Dashboard</h4>
+            </div>
+            <div class="card-body">
+                <!-- Stats -->
+                <div class="row mb-4">
+                    <div class="col-md-3">
+                        <div class="card bg-success text-white">
+                            <div class="card-body">
+                                <h5>Successful Logins Today</h5>
+                                <h3>{{ success_today }}</h3>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-danger text-white">
+                            <div class="card-body">
+                                <h5>Failed Logins Today</h5>
+                                <h3>{{ failed_today }}</h3>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-info text-white">
+                            <div class="card-body">
+                                <h5>Active Sessions</h5>
+                                <h3>{{ active_sessions_count }}</h3>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-warning text-white">
+                            <div class="card-body">
+                                <h5>Total Attempts</h5>
+                                <h3>{{ total_attempts }}</h3>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Suspicious Activity -->
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header bg-danger text-white">
+                                <h5>Top Failed Login Attempts (Users)</h5>
+                            </div>
+                            <div class="card-body">
+                                <table class="table">
+                                    <thead>
+                                        <tr>
+                                            <th>Username</th>
+                                            <th>Failed Attempts</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for item in recent_failed %}
+                                        <tr>
+                                            <td>{{ item.username }}</td>
+                                            <td><span class="badge bg-danger">{{ item.count }}</span></td>
+                                        </tr>
+                                        {% empty %}
+                                        <tr><td colspan="2">No failed attempts</td></tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header bg-warning text-white">
+                                <h5>Top Suspicious IPs</h5>
+                            </div>
+                            <div class="card-body">
+                                <table class="table">
+                                    <thead>
+                                        <tr>
+                                            <th>IP Address</th>
+                                            <th>Failed Attempts</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for item in suspicious_ips %}
+                                        <tr>
+                                            <td>{{ item.ip_address }}</td>
+                                            <td><span class="badge bg-warning">{{ item.count }}</span></td>
+                                        </tr>
+                                        {% empty %}
+                                        <tr><td colspan="2">No suspicious IPs</td></tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Active Users -->
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5>Most Active Users (30 days)</h5>
+                            </div>
+                            <div class="card-body">
+                                <table class="table">
+                                    <thead>
+                                        <tr>
+                                            <th>Username</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for item in active_users %}
+                                        <tr>
+                                            <td>{{ item.user__username }}</td>
+                                            <td><span class="badge bg-primary">{{ item.access_count }}</span></td>
+                                        </tr>
+                                        {% empty %}
+                                        <tr><td colspan="2">No activity</td></tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5>Action Breakdown (30 days)</h5>
+                            </div>
+                            <div class="card-body">
+                                <table class="table">
+                                    <thead>
+                                        <tr>
+                                            <th>Action</th>
+                                            <th>Count</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for item in action_stats %}
+                                        <tr>
+                                            <td>{{ item.action }}</td>
+                                            <td>{{ item.count }}</td>
+                                        </tr>
+                                        {% empty %}
+                                        <tr><td colspan="2">No activity</td></tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

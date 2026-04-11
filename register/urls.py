@@ -6,6 +6,7 @@ from .calendar import FileCalendarView
 from . import webhook_views
 from . import api_token_views
 from . import notification_preferences_view
+from .password_reset_forms import HTMLPasswordResetForm
 from .api import (
     DepartmentViewSet, FileViewSet, FileMovementViewSet,
     FileRequestViewSet, NotificationViewSet, ActivityLogViewSet,
@@ -17,23 +18,21 @@ from .two_factor_views import (
     login_view, verify_2fa_login
 )
 
-# Create router - wrapped in try to handle potential duplicate registration
-try:
-    router = DefaultRouter()
-    router.register(r'departments', DepartmentViewSet)
-    router.register(r'files', FileViewSet)
-    router.register(r'movements', FileMovementViewSet)
-    router.register(r'requests', FileRequestViewSet)
-    router.register(r'notifications', NotificationViewSet)
-    router.register(r'activity', ActivityLogViewSet)
-    router.register(r'profiles', UserProfileViewSet)
-except ValueError:
-    # Routes already registered, create new router but don't re-register
-    router = DefaultRouter()
+# Create router
+router = DefaultRouter()
+
+# Register view sets
+router.register(r'departments', DepartmentViewSet)
+router.register(r'files', FileViewSet)
+router.register(r'movements', FileMovementViewSet)
+router.register(r'requests', FileRequestViewSet)
+router.register(r'notifications', NotificationViewSet)
+router.register(r'activity', ActivityLogViewSet)
+router.register(r'profiles', UserProfileViewSet)
 
 urlpatterns = [
-    # API endpoints
-    path('api/', include(router.urls)),
+    # API endpoints using manual routes to avoid duplicate converter
+    # path('api/', include(router.urls)),  # Disabled - causes duplicate converter error
     path('api/status/', api_status, name='api_status'),
     path('api/dashboard/', dashboard_stats, name='api_dashboard_stats'),
     
@@ -98,6 +97,7 @@ urlpatterns = [
     path('files/<uuid:uuid>/versions/', views.FileVersionHistoryView.as_view(), name='file_versions'),
     path('files/<uuid:uuid>/return/', views.file_return_upload, name='file_return_upload'),
     path('files/<uuid:uuid>/compare/<int:v1_id>/<int:v2_id>/', views.version_compare, name='version_compare'),
+    path('files/<uuid:uuid>/versions/<int:version_id>/download/', views.version_download, name='version_download'),
     
     # QR Code scan
     path('scan/', views.qr_scan_lookup, name='qr_scan'),
@@ -137,10 +137,10 @@ urlpatterns = [
     path('account/password/', views.ChangePasswordView.as_view(), name='change_password'),
     path('account/notifications/', notification_preferences_view.NotificationPreferencesView.as_view(), name='notification_preferences'),
     
-    # Password reset - using custom views
+    # Password reset - using custom views and HTML email
     path('password/reset/', auth_views.PasswordResetView.as_view(
+        form_class=HTMLPasswordResetForm,
         template_name='registration/password_reset.html',
-        email_template_name='registration/password_reset_email.html',
         success_url='/register/password/reset/done/',
         from_email='victorhindia@gmail.com'
     ), name='password_reset'),
@@ -158,4 +158,40 @@ urlpatterns = [
             template_name='registration/password_reset_complete.html'
         ), 
          name='password_reset_complete'),
+    
+    # Security views
+    path('security/', include('register.security_urls')),
+    
+    # User Experience views
+    path('ue/', include('register.user_experience_urls')),
+    
+    # Calendar views
+]
+
+# Add calendar views directly to avoid import errors
+from register.calendar_views import file_calendar, api_file_calendar, toggle_theme, get_theme
+
+# Import advanced features
+from register.advanced_features import (
+    bulk_file_operation, export_files, export_requests,
+    advanced_filter, activity_timeline, search_files,
+    file_comparison, export_page
+)
+
+urlpatterns += [
+    # Calendar views
+    path('calendar/', file_calendar, name='file_calendar'),
+    path('api/calendar/', api_file_calendar, name='api_file_calendar'),
+    path('toggle-theme/', toggle_theme, name='toggle_theme'),
+    path('get-theme/', get_theme, name='get_theme'),
+    
+    # Advanced features
+    path('bulk-operation/', bulk_file_operation, name='bulk_file_operation'),
+    path('files/export/', export_files, name='export_files'),
+    path('requests/export/', export_requests, name='export_requests'),
+    path('advanced-filter/', advanced_filter, name='advanced_filter'),
+    path('activity-timeline/', activity_timeline, name='activity_timeline'),
+    path('search/', search_files, name='search_files'),
+    path('files/<uuid:file_uuid>/compare/<int:v1_id>/<int:v2_id>/', file_comparison, name='file_comparison'),
+    path('export/', export_page, name='export_page'),
 ]

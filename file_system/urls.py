@@ -42,14 +42,6 @@ urlpatterns = [
 from django.views.static import serve
 urlpatterns += [
     re_path(r'^media/(?P<path>.*)$', serve, {'document_root': settings.MEDIA_ROOT}, name='media'),
-]
-urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
-
-# Serve static files  
-urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
-
-# Add re_path for static files as fallback
-from django.contrib.staticfiles.views import serve
-urlpatterns += [
     re_path(r'^static/(?P<path>.*)$', serve, {'document_root': settings.STATIC_ROOT}, name='static'),
 ]
+urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

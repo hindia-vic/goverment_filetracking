@@ -35,10 +35,11 @@
         <h5 class="mb-0"><i class="bi bi-plus-circle me-2"></i>Add Comment</h5>
     </div>
     <div class="card-body">
-        <form method="post">
+        <form method="post" id="commentForm">
             {% csrf_token %}
+            <input type="hidden" name="parent_id" id="parentId" value="">
             <div class="mb-3">
-                <textarea name="content" class="form-control" rows="4" placeholder="Enter your comment..." required></textarea>
+                <textarea name="content" class="form-control" rows="3" placeholder="Enter your comment..." required id="commentContent"></textarea>
             </div>
             {% if request.user.is_superuser or request.user.profile.role == 'registry' or request.user.profile.role == 'admin' %}
             <div class="form-check mb-3">
@@ -49,8 +50,11 @@
                 </label>
             </div>
             {% endif %}
-            <button type="submit" class="btn btn-primary">
+            <button type="submit" class="btn btn-primary" id="submitBtn">
                 <i class="bi bi-send me-1"></i>Post Comment
+            </button>
+            <button type="button" class="btn btn-outline-secondary ms-2" id="cancelReply" style="display: none;" onclick="cancelReply()">
+                Cancel Reply
             </button>
         </form>
     </div>
@@ -64,20 +68,44 @@
     <div class="card-body">
         {% if comments %}
             {% for comment in comments %}
-            <div class="border-bottom pb-3 mb-3">
-                <div class="d-flex justify-content-between align-items-start">
-                    <div>
-                        <strong>{{ comment.author.get_full_name|default:comment.author.username }}</strong>
-                        {% if comment.is_internal %}
-                            <span class="badge bg-warning text-dark ms-1">Internal</span>
-                        {% endif %}
-                        <small class="text-muted ms-2">{{ comment.created_at|timesince }} ago</small>
+            <div class="comment-thread mb-4" id="comment-{{ comment.id }}">
+                <div class="border rounded p-3 mb-2">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <strong>{{ comment.author.get_full_name|default:comment.author.username }}</strong>
+                            {% if comment.is_internal %}
+                                <span class="badge bg-warning text-dark ms-1">Internal</span>
+                            {% endif %}
+                            <small class="text-muted ms-2">{{ comment.created_at|date:"M d, Y H:i" }}</small>
+                        </div>
                     </div>
-                    {% if comment.updated_at != comment.created_at %}
-                    <small class="text-muted">edited</small>
-                    {% endif %}
+                    <p class="mt-2 mb-2">{{ comment.content|linebreaks }}</p>
+                    <button class="btn btn-sm btn-outline-primary" onclick="showReplyForm({{ comment.id }}, '{{ comment.author.username }}')">
+                        <i class="bi bi-reply me-1"></i>Reply
+                    </button>
                 </div>
-                <p class="mt-2 mb-0">{{ comment.content|linebreaks }}</p>
+                
+                <!-- Nested Replies -->
+                {% with comment.get_all_replies as replies %}
+                {% if replies %}
+                <div class="ms-4 ps-3 border-start">
+                    {% for reply in replies %}
+                    <div class="border rounded p-2 mb-2 bg-light" id="reply-{{ reply.id }}">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <strong>{{ reply.author.get_full_name|default:reply.author.username }}</strong>
+                                {% if reply.is_internal %}
+                                    <span class="badge bg-warning text-dark ms-1">Internal</span>
+                                {% endif %}
+                                <small class="text-muted ms-2">{{ reply.created_at|date:"M d, Y H:i" }}</small>
+                            </div>
+                        </div>
+                        <p class="mt-1 mb-1 small">{{ reply.content|linebreaks }}</p>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+                {% endwith %}
             </div>
             {% endfor %}
         {% else %}
@@ -85,4 +113,33 @@
         {% endif %}
     </div>
 </div>
+
+<script>
+function showReplyForm(commentId, authorName) {
+    document.getElementById('parentId').value = commentId;
+    document.getElementById('commentContent').placeholder = 'Replying to ' + authorName + '...';
+    document.getElementById('commentContent').focus();
+    document.getElementById('submitBtn').innerHTML = '<i class="bi bi-reply me-1"></i>Post Reply';
+    document.getElementById('cancelReply').style.display = 'inline-block';
+    document.getElementById('commentContent').scrollIntoView({behavior: 'smooth'});
+}
+
+function cancelReply() {
+    document.getElementById('parentId').value = '';
+    document.getElementById('commentContent').placeholder = 'Enter your comment...';
+    document.getElementById('submitBtn').innerHTML = '<i class="bi bi-send me-1"></i>Post Comment';
+    document.getElementById('cancelReply').style.display = 'none';
+}
+</script>
+
+<style>
+.comment-thread .border {
+    border-color: #dee2e6 !important;
+}
+{% if request.user.is_superuser or request.user.profile.role == 'registry' or request.user.profile.role == 'admin' %}
+.bg-light {
+    background-color: #f8f9fa !important;
+}
+{% endif %}
+</style>
 {% endblock %}

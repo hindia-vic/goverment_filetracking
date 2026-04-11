@@ -29,6 +29,27 @@
                     </ul>
                 </div>
             </div>
+            <div class="card mt-3">
+                <div class="card-body">
+                    <h5 class="card-title">Security</h5>
+                    <ul class="nav flex-column nav-pills">
+                        <li class="nav-item">
+                            <a class="nav-link" href="{% url 'login_history' %}">Login History</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{% url 'active_sessions' %}">Active Sessions</a>
+                        </li>
+                        {% if request.user.is_superuser %}
+                        <li class="nav-item">
+                            <a class="nav-link" href="{% url 'security_dashboard' %}">Security Dashboard</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{% url 'access_logs' %}">Access Logs</a>
+                        </li>
+{% endif %}
+                    </ul>
+                </div>
+            </div>
         </div>
         <div class="col-md-9">
             <div class="card">

@@ -1712,6 +1712,106 @@ class FileVersionHistoryView(LoginRequiredMixin, View):
         })
 
 
+@login_required
+def version_download(request, uuid, version_id):
+    """
+    Download a specific file version if the user has permission.
+    Permission is granted if user is:
+    - Admin/registry user (full access to all versions)
+    - The creator of the file
+    - Current holder (can get latest version)
+    - Has approved request (can get latest version)
+    """
+    from django.http import FileResponse, Http404
+    from django.conf import settings
+    import logging
+    
+    _logger = logging.getLogger(__name__)
+    
+    file = get_object_or_404(File, uuid=uuid)
+    
+    # Get the version
+    try:
+        version = file.versions.get(id=version_id)
+    except FileVersion.DoesNotExist:
+        messages.error(request, 'Version not found.')
+        return redirect('file_versions', uuid=uuid)
+    
+    # Check if user has permission to download this version
+    has_permission = False
+    
+    # Admin/registry has full access
+    if request.user.is_superuser:
+        has_permission = True
+    elif hasattr(request.user, 'profile') and request.user.profile.role in ['registry', 'admin']:
+        has_permission = True
+    # Creator can access all versions
+    elif file.created_by == request.user:
+        has_permission = True
+    # Current holder can only get latest version
+    elif file.current_holder == request.user:
+        latest_version = file.versions.first()
+        if latest_version and latest_version.id == version.id:
+            has_permission = True
+    # User with approved request can get latest version
+    elif FileRequest.objects.filter(
+        file=file,
+        requesting_user=request.user,
+        status__in=['ready_for_pickup', 'handed_over', 'confirmed', 'pending_return']
+    ).exists():
+        latest_version = file.versions.first()
+        if latest_version and latest_version.id == version.id:
+            has_permission = True
+    # User with returned request - can only get approved version
+    elif FileRequest.objects.filter(
+        file=file,
+        requesting_user=request.user,
+        status__in=['returned_verified']
+    ).exists():
+        file_request = FileRequest.objects.filter(
+            file=file,
+            requesting_user=request.user,
+            status='returned_verified'
+        ).first()
+        if file_request and file_request.approved_version_id == version.id:
+            has_permission = True
+    
+    if not has_permission:
+        messages.error(request, 'You do not have permission to download this version.')
+        return redirect('file_versions', uuid=uuid)
+    
+    # Check file exists
+    if not version.file_attachment:
+        messages.error(request, 'No file attached to this version.')
+        return redirect('file_versions', uuid=uuid)
+    
+    # Log the download
+    ActivityLog.objects.create(
+        user=request.user,
+        action='file_download',
+        description=f'Downloaded version {version.version_number} of file {file.reference}',
+        metadata={'version_id': version.id, 'version_number': version.version_number}
+    )
+    
+    # Generate filename with version
+    original_name = version.original_filename or file.reference
+    filename = f"{original_name}_v{version.version_number}"
+    
+    # Create file response
+    try:
+        response = FileResponse(
+            version.file_attachment.open('rb'),
+            content_type='application/octet-stream'
+        )
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        response['Content-Length'] = version.file_size
+        return response
+    except Exception as e:
+        _logger.error(f"Error downloading version: {e}")
+        messages.error(request, 'Error downloading file. Please try again.')
+        return redirect('file_versions', uuid=uuid)
+
+
 class TagListView(LoginRequiredMixin, ListView):
     """List all tags (admin/registry only)"""
     model = FileTag
@@ -2226,24 +2326,28 @@ def get_client_ip(request):
 
 
 class FileCommentView(LoginRequiredMixin, View):
-    """Add/view comments on a file"""
+    """Add/view comments on a file with nested replies"""
     template_name = 'register/file_comments.html'
     
     def get(self, request, uuid):
         file = get_object_or_404(File, uuid=uuid)
         
-        # Get comments - hide internal comments from non-privileged users
-        if request.user.is_superuser or (
+        # Check if user can view internal comments
+        can_view_internal = request.user.is_superuser or (
             hasattr(request.user, 'profile') and 
             request.user.profile.role in ['registry', 'admin']
-        ):
-            comments = file.comments.select_related('author').all()
+        )
+        
+        # Get comments - top-level comments only (no parent)
+        if can_view_internal:
+            comments = file.comments.select_related('author').filter(parent__isnull=True)
         else:
-            comments = file.comments.select_related('author').filter(is_internal=False)
+            comments = file.comments.select_related('author').filter(parent__isnull=True, is_internal=False)
         
         return render(request, self.template_name, {
             'file': file,
             'comments': comments,
+            'can_view_internal': can_view_internal,
         })
     
     def post(self, request, uuid):
@@ -2262,21 +2366,35 @@ class FileCommentView(LoginRequiredMixin, View):
         
         is_internal = request.POST.get('is_internal') == 'on' and can_add_internal
         
-        # Create comment
-        FileComment.objects.create(
+        # Check if this is a reply
+        parent_id = request.POST.get('parent_id')
+        parent_comment = None
+        if parent_id:
+            try:
+                parent_comment = FileComment.objects.get(id=parent_id, file=file)
+            except FileComment.DoesNotExist:
+                messages.error(request, 'Parent comment not found.')
+                return redirect('file_comments', uuid=uuid)
+        
+        # Create comment (or reply)
+        comment = FileComment.objects.create(
             file=file,
             author=request.user,
             content=content,
+            parent=parent_comment,
             is_internal=is_internal
         )
         
-        messages.success(request, 'Comment added successfully.')
+        if parent_comment:
+            messages.success(request, 'Reply added successfully.')
+        else:
+            messages.success(request, 'Comment added successfully.')
         
         # Log activity
         ActivityLog.objects.create(
             user=request.user,
             action='comment_added',
-            description=f"Added comment to file: {file.reference}",
+            description=f"Added {'reply to comment' if parent_comment else 'comment'} to file: {file.reference}",
             ip_address=get_client_ip(request)
         )
         

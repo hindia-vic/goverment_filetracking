@@ -22,7 +22,7 @@
                                     <th>Changed By</th>
                                     <th>Date</th>
                                     <th>Notes</th>
-                                    {% if user.is_superuser or user.profile.role == 'registry' or user.profile.role == 'admin' %}
+                                    {% if version.file_attachment %}
                                     <th>Download</th>
                                     {% endif %}
                                 </tr>
@@ -40,21 +40,23 @@
                                     <td>{{ version.created_by.username|default:"System" }}</td>
                                     <td>{{ version.created_at|date:"M d, Y H:i" }}</td>
                                     <td><small>{{ version.notes|default:"-" }}</small></td>
-                                    {% if user.is_superuser or user.profile.role == 'registry' or user.profile.role == 'admin' %}
                                     <td>
                                         {% if version.file_attachment %}
-                                        <a href="{{ version.file_attachment.url }}" class="btn btn-sm btn-primary" download="{{ version.original_filename|default:file.reference }}_v{{ version.version_number }}">
+                                        {% if user.is_superuser or user.profile.role == 'registry' or user.profile.role == 'admin' or file.created_by == user or file.current_holder == user %}
+                                        <a href="{% url 'version_download' file.uuid version.id %}" class="btn btn-sm btn-primary" download>
                                             <i class="bi bi-download"></i> Download
                                         </a>
+                                        {% else %}
+                                        <span class="text-muted"><i class="bi bi-lock"></i> Restricted</span>
+                                        {% endif %}
                                         {% else %}
                                         <span class="text-muted">-</span>
                                         {% endif %}
                                     </td>
-                                    {% endif %}
                                 </tr>
                                 {% empty %}
                                 <tr>
-                                    <td colspan="{% if user.is_superuser or user.profile.role == 'registry' or user.profile.role == 'admin' %}7{% else %}6{% endif %}" class="text-center text-muted">No version history available</td>
+                                    <td colspan="7" class="text-center text-muted">No version history available</td>
                                 </tr>
                                 {% endfor %}
                             </tbody>

@@ -139,14 +139,77 @@
                         </a>
                     </div>
                     
-                    {% if user.is_superuser or user.profile.role == 'registry' or user.profile.role == 'admin' %}
+{% if user.is_superuser or user.profile.role == 'admin' %}
                     <div class="col-md-4">
-                        <a href="{% url 'request_list' %}" class="text-decoration-none">
-                            <div class="d-flex align-items-center p-3 bg-warning bg-opacity-10 rounded hover-effect">
-                                <i class="bi bi-clipboard-check text-warning fs-4 me-3"></i>
+                        <a href="{% url 'webhook_list' %}" class="text-decoration-none">
+                            <div class="d-flex align-items-center p-3 bg-info bg-opacity-10 rounded hover-effect">
+                                <i class="bi bi-link-45deg text-info fs-4 me-3"></i>
                                 <div>
-                                    <strong class="d-block">File Requests</strong>
-                                    <small class="text-muted">Process requests</small>
+                                    <strong class="d-block">Webhooks</strong>
+                                    <small class="text-muted">External integrations</small>
+                                </div>
+                            </div>
+                        </a>
+                    </div>
+                    
+                    <div class="col-md-4">
+                        <a href="{% url 'activity_timeline' %}" class="text-decoration-none">
+                            <div class="d-flex align-items-center p-3 bg-dark bg-opacity-10 rounded hover-effect">
+                                <i class="bi bi-clock-history text-dark fs-4 me-3"></i>
+                                <div>
+                                    <strong class="d-block">Activity Timeline</strong>
+                                    <small class="text-muted">View all activities</small>
+                                </div>
+                            </div>
+                        </a>
+                    </div>
+                    
+                    <div class="col-md-4">
+                        <a href="{% url 'export_files' %}?format=csv" class="text-decoration-none">
+                            <div class="d-flex align-items-center p-3 bg-success bg-opacity-10 rounded hover-effect">
+                                <i class="bi bi-file-earmark-arrow-down text-success fs-4 me-3"></i>
+                                <div>
+                                    <strong class="d-block">Export Files</strong>
+                                    <small class="text-muted">Download CSV/PDF/Excel</small>
+                                </div>
+                            </div>
+                        </a>
+                    </div>
+                    
+                    <div class="col-md-4">
+                        <a href="{% url 'export_page' %}" class="text-decoration-none">
+                            <div class="d-flex align-items-center p-3 bg-secondary bg-opacity-10 rounded hover-effect">
+                                <i class="bi bi-download text-secondary fs-4 me-3"></i>
+                                <div>
+                                    <strong class="d-block">Export Center</strong>
+                                    <small class="text-muted">Full export options</small>
+                                </div>
+                            </div>
+                        </a>
+                    </div>
+                    {% endif %}
+                    
+                    <!-- User Experience Features -->
+                    <div class="col-md-4">
+                        <a href="{% url 'file_calendar' %}" class="text-decoration-none">
+                            <div class="d-flex align-items-center p-3" style="background-color: #e3e2f5;">
+                                <i class="bi bi-calendar3 text-primary fs-4 me-3"></i>
+                                <div>
+                                    <strong class="d-block">File Calendar</strong>
+                                    <small class="text-muted">View availability</small>
+                                </div>
+                            </div>
+                        </a>
+                    </div>
+                    
+                    {% if user.is_superuser or user.profile.role == 'admin' %}
+                    <div class="col-md-4">
+                        <a href="{% url 'security_dashboard' %}" class="text-decoration-none">
+                            <div class="d-flex align-items-center p-3 bg-danger bg-opacity-10 rounded hover-effect">
+                                <i class="bi bi-shield-check text-danger fs-4 me-3"></i>
+                                <div>
+                                    <strong class="d-block">Security Dashboard</strong>
+                                    <small class="text-muted">Security overview</small>
                                 </div>
                             </div>
                         </a>

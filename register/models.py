@@ -922,23 +922,40 @@ class FileTag(models.Model):
 
 
 class FileComment(models.Model):
-    """Comments/notes on files for collaboration"""
+    """Comments/notes on files for collaboration with nested replies"""
     file = models.ForeignKey(File, on_delete=models.CASCADE, related_name='comments')
     author = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='file_comments')
     content = models.TextField()
+    parent = models.ForeignKey(
+        'self', 
+        on_delete=models.CASCADE, 
+        null=True, 
+        blank=True, 
+        related_name='replies'
+    )
     is_internal = models.BooleanField(
         default=False,
         help_text="Internal comments are only visible to registry/admin"
     )
+    is_edited = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
     class Meta:
-        ordering = ['-created_at']
+        ordering = ['created_at']
         verbose_name_plural = 'File comments'
     
     def __str__(self):
         return f"Comment by {self.author} on {self.file.reference}"
+    
+    def get_replies(self):
+        return self.replies.filter(is_internal=False).order_by('created_at')
+    
+    def get_all_replies(self):
+        return self.replies.all().order_by('created_at')
+    
+    def is_reply(self):
+        return self.parent is not None
 
 
 class Webhook(models.Model):
@@ -1030,4 +1047,88 @@ File.add_to_class('tags', models.ManyToManyField(
     related_name='files'
 ))
 
-# Create your models here.
+
+class LoginAttempt(models.Model):
+    STATUS_CHOICES = [
+        ('success', 'Success'),
+        ('failed', 'Failed'),
+    ]
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True, related_name='login_attempts')
+    username = models.CharField(max_length=150)
+    ip_address = models.GenericIPAddressField()
+    user_agent = models.TextField(blank=True, null=True)
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES)
+    timestamp = models.DateTimeField(auto_now_add=True)
+    locked = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ['-timestamp']
+        indexes = [
+            models.Index(fields=['-timestamp']),
+            models.Index(fields=['username', '-timestamp']),
+            models.Index(fields=['ip_address', '-timestamp']),
+        ]
+
+    def __str__(self):
+        return f"{self.username} - {self.status} - {self.timestamp}"
+
+
+class UserSession(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='sessions')
+    session_key = models.CharField(max_length=40, unique=True)
+    ip_address = models.GenericIPAddressField()
+    user_agent = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_activity = models.DateTimeField(auto_now=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['-last_activity']
+        indexes = [
+            models.Index(fields=['-last_activity']),
+        ]
+
+    def __str__(self):
+        return f"{self.user.username} - {self.ip_address} - {self.last_activity}"
+
+    def duration(self):
+        return self.last_activity - self.created_at
+
+
+class AccessLog(models.Model):
+    ACTION_CHOICES = [
+        ('login', 'Login'),
+        ('logout', 'Logout'),
+        ('file_view', 'File View'),
+        ('file_download', 'File Download'),
+        ('file_upload', 'File Upload'),
+        ('file_checkout', 'File Checkout'),
+        ('file_checkin', 'File Checkin'),
+        ('file_request', 'File Request'),
+        ('request_approve', 'Request Approve'),
+        ('request_reject', 'Request Reject'),
+        ('password_change', 'Password Change'),
+        ('settings_change', 'Settings Change'),
+        ('2fa_enable', '2FA Enable'),
+        ('2fa_disable', '2FA Disable'),
+    ]
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='access_logs')
+    action = models.CharField(max_length=20, choices=ACTION_CHOICES)
+    ip_address = models.GenericIPAddressField()
+    user_agent = models.TextField(blank=True, null=True)
+    details = models.TextField(blank=True, null=True)
+    timestamp = models.DateTimeField(auto_now_add=True)
+    file = models.ForeignKey(File, on_delete=models.CASCADE, null=True, blank=True, related_name='security_access_logs')
+
+    class Meta:
+        ordering = ['-timestamp']
+        indexes = [
+            models.Index(fields=['-timestamp']),
+            models.Index(fields=['user', '-timestamp']),
+            models.Index(fields=['action', '-timestamp']),
+        ]
+
+    def __str__(self):
+        return f"{self.user.username} - {self.action} - {self.timestamp}"

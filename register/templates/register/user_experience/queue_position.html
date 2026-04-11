@@ -1,0 +1,46 @@
+{% extends 'register/base.html' %}
+
+{% block title %}Queue Position - {{ file.reference }}{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-info text-white">
+                    <h4><i class="bi bi-person-badge"></i> Your Queue Position</h4>
+                </div>
+                <div class="card-body text-center">
+                    <h2 class="mb-4">{{ file.reference }}</h2>
+                    <p class="text-muted">{{ file.title }}</p>
+                    
+                    {% if user_position %}
+                        <div class="alert alert-info">
+                            <h1>Position #{{ user_position }}</h1>
+                            <p>of {{ total_pending }} pending request(s)</p>
+                        </div>
+                        
+                        <h5>Current Queue:</h5>
+                        <ul class="list-group">
+                            {% for q in queue %}
+                            <li class="list-group-item{% if q.is_current_user %} list-group-item-info{% endif %}">
+                                #{{ q.position }} - {{ q.username }}
+                                {% if q.is_current_user %}(You){% endif %}
+                                <span class="badge bg-{% if q.status == 'ready_for_pickup' %}success{% else %}secondary{% endif %}">
+                                    {{ q.status }}
+                                </span>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                    {% else %}
+                        <div class="alert alert-success">
+                            <h4>You're next!</h4>
+                            <p>You can proceed to pick up this file.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

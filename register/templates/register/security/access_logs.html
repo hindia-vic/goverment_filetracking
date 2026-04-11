@@ -1,0 +1,74 @@
+{% extends 'register/base.html' %}
+
+{% block title %}Access Logs - File Tracking System{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h4><i class="bi bi-file-earmark-text"></i> Access Logs</h4>
+            </div>
+            <div class="card-body">
+                <!-- Filter Form -->
+                <form method="get" class="row g-3 mb-4">
+                    <div class="col-md-3">
+                        <label class="form-label">User</label>
+                        {{ form.user }}
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Action</label>
+                        {{ form.action }}
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Start Date</label>
+                        {{ form.start_date }}
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">End Date</label>
+                        {{ form.end_date }}
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">IP Address</label>
+                        {{ form.ip_address }}
+                    </div>
+                    <div class="col-md-12">
+                        <button type="submit" class="btn btn-primary">Filter</button>
+                        <a href="{% url 'access_logs' %}" class="btn btn-secondary">Clear</a>
+                    </div>
+                </form>
+
+                <!-- Logs Table -->
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>Timestamp</th>
+                            <th>User</th>
+                            <th>Action</th>
+                            <th>IP Address</th>
+                            <th>Details</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for log in logs %}
+                        <tr>
+                            <td>{{ log.timestamp|date:"Y-m-d H:i:s" }}</td>
+                            <td>{{ log.user.username }}</td>
+                            <td>
+                                <span class="badge bg-info">{{ log.get_action_display }}</span>
+                            </td>
+                            <td>{{ log.ip_address }}</td>
+                            <td>{{ log.details|default:"-" }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="5">No access logs found.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

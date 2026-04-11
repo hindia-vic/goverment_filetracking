@@ -6,6 +6,7 @@
 <style>
     .calendar-table {
         width: 100%;
+        table-layout: fixed;
         border-collapse: collapse;
     }
     .calendar-table th {
@@ -13,11 +14,14 @@
         padding: 15px;
         text-align: center;
         border: 1px solid #dee2e6;
+        font-weight: 600;
     }
     .calendar-table td {
         border: 1px solid #dee2e6;
         min-height: 100px;
+        height: 100px;
         background: #fff;
+        vertical-align: top;
     }
     .calendar-table td:hover {
         background: #f8f9fa;
@@ -56,6 +60,13 @@
     }
     .stats-card.pending {
         border-color: #0dcaf0;
+    }
+    @media (max-width: 768px) {
+        .calendar-table th, .calendar-table td {
+            padding: 8px;
+            font-size: 12px;
+            min-height: 60px;
+        }
     }
 </style>
 {% endblock %}

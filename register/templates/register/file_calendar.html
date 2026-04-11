@@ -1,0 +1,201 @@
+{% extends 'register/base.html' %}
+{% load calendar_tags %}
+
+{% block title %}File Calendar - {{ month_name }} {{ year }}{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <h4 class="mb-0">
+                    <i class="bi bi-calendar3 me-2"></i>File Availability Calendar
+                </h4>
+
+                <div class="d-flex align-items-center gap-2">
+                    <a href="?year={{ year }}&month={{ month|add:'-1' }}" class="btn btn-outline-secondary btn-sm">
+                        &laquo; Prev
+                    </a>
+
+                    <span class="px-3 py-2 fw-bold">
+                        {{ month_name }} {{ year }}
+                    </span>
+
+                    <a href="?year={{ year }}&month={{ month|add:1 }}" class="btn btn-outline-secondary btn-sm">
+                        Next &raquo;
+                    </a>
+
+                    <a href="?year={{ timezone.now.year }}&month={{ timezone.now.month }}" class="btn btn-primary btn-sm">
+                        Today
+                    </a>
+                </div>
+            </div>
+
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-bordered table-sm calendar-table mb-0 w-100">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Monday</th>
+                                <th>Tuesday</th>
+                                <th>Wednesday</th>
+                                <th>Thursday</th>
+                                <th>Friday</th>
+                                <th>Saturday</th>
+                                <th>Sunday</th>
+                            </tr>
+                        </thead>
+
+                        <tbody>
+                            {% for week in month_days %}
+                            <tr>
+                                {% for day in week %}
+                                <td style="height: 100px; vertical-align: top;">
+                                    
+                                    {% if day != 0 %}
+                                        <!-- Day Number -->
+                                        <div class="fw-bold mb-1">{{ day }}</div>
+
+                                        <!-- Correct Date Key -->
+                                        {% with date_key=year|stringformat:"s"|add:"-"|add:month|stringformat:"02d"|add:"-"|add:day|stringformat:"02d" %}
+                                            
+                                            {% if date_key in events_by_date %}
+                                                {% for event in events_by_date|get_item:date_key %}
+                                                
+                                                <div class="badge 
+                                                    {% if event.type == 'checkout' %}
+                                                        bg-warning text-dark
+                                                    {% elif event.type == 'checkin' %}
+                                                        bg-success
+                                                    {% elif event.type == 'due' %}
+                                                        bg-danger
+                                                    {% else %}
+                                                        bg-info
+                                                    {% endif %}
+                                                    mb-1 d-block text-wrap"
+                                                    style="font-size: 10px;">
+                                                    
+                                                    {{ event.title }}
+                                                </div>
+
+                                                {% endfor %}
+                                            {% endif %}
+
+                                        {% endwith %}
+                                    {% endif %}
+
+                                </td>
+                                {% endfor %}
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Overdue Files Section -->
+{% if overdue_files %}
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-danger bg-opacity-10">
+                <h5 class="mb-0">
+                    <i class="bi bi-exclamation-triangle text-danger me-2"></i>
+                    Overdue Files
+                </h5>
+            </div>
+
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Reference</th>
+                                <th>Title</th>
+                                <th>Holder</th>
+                                <th>Due Date</th>
+                            </tr>
+                        </thead>
+
+                        <tbody>
+                            {% for file in overdue_files %}
+                            <tr>
+                                <td>
+                                    <a href="{% url 'file_detail' file.uuid %}">
+                                        {{ file.reference }}
+                                    </a>
+                                </td>
+                                <td>{{ file.title }}</td>
+                                <td>{{ file.current_holder.username }}</td>
+                                <td>{{ file.due_date|date:"Y-m-d" }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<style>
+.calendar-table {
+    width: 100%;
+    table-layout: fixed;
+    border-collapse: collapse;
+}
+
+.calendar-table th {
+    padding: 12px 5px;
+    text-align: center;
+    font-weight: 600;
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+}
+
+.calendar-table td {
+    padding: 8px;
+    vertical-align: top;
+    border: 1px solid #dee2e6;
+    background: #fff;
+}
+
+.calendar-table td:hover {
+    background: #f8f9fa;
+}
+
+/* Event badges */
+.calendar-table .badge {
+    display: block;
+    width: 100%;
+    text-align: left;
+    white-space: normal;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .calendar-table td {
+        min-width: 50px !important;
+        height: 60px !important;
+        font-size: 12px;
+        padding: 4px;
+    }
+
+    .calendar-table th {
+        padding: 8px 2px;
+        font-size: 12px;
+    }
+
+    .calendar-table .badge {
+        font-size: 8px !important;
+        padding: 2px 4px;
+    }
+}
+</style>
+
+{% endblock %}

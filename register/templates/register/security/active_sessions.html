@@ -1,0 +1,77 @@
+{% extends 'register/base.html' %}
+
+{% block title %}Active Sessions - File Tracking System{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h4><i class="bi bi-person-lines-fill"></i> Active Sessions</h4>
+                <form method="post" action="{% url 'terminate_all_sessions' %}">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Are you sure you want to terminate all other sessions?')">
+                        Terminate All Other Sessions
+                    </button>
+                </form>
+            </div>
+            <div class="card-body">
+                {% if sessions %}
+                <form method="post">
+                    {% csrf_token %}
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Select</th>
+                                <th>Device</th>
+                                <th>IP Address</th>
+                                <th>Last Activity</th>
+                                <th>Duration</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for session in sessions %}
+                            <tr>
+                                <td>
+                                    {% if session.session_key != current_session.session_key %}
+                                    <input type="checkbox" name="sessions" value="{{ session.id }}">
+                                    {% endif %}
+                                </td>
+                                <td>{{ session.user_agent|truncatechars:50 }}</td>
+                                <td>{{ session.ip_address }}</td>
+                                <td>{{ session.last_activity|date:"Y-m-d H:i" }}</td>
+                                <td>{{ session.created_at|timesince }} ago</td>
+                                <td>
+                                    {% if session.session_key == current_session.session_key %}
+                                    <span class="badge bg-success">Current</span>
+                                    {% else %}
+                                    <span class="badge bg-secondary">Other</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if session.session_key != current_session.session_key %}
+                                    <a href="{% url 'terminate_session' session.id %}" class="btn btn-sm btn-danger" onclick="return confirm('Terminate this session?')">
+                                        Terminate
+                                    </a>
+                                    {% else %}
+                                    <span class="text-muted">Current</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    {% if form.fields.sessions.queryset|length > 1 %}
+                    <button type="submit" class="btn btn-danger">Terminate Selected</button>
+                    {% endif %}
+                </form>
+                {% else %}
+                <p>No active sessions found.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

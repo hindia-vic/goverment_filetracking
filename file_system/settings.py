@@ -109,7 +109,7 @@ ROOT_URLCONF = 'file_system.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [BASE_DIR / 'register' / 'templates'],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -247,7 +247,16 @@ DEFAULT_FROM_EMAIL = env('EMAIL_HOST_USER')
 
 # Domain for password reset emails
 SITE_DOMAIN = 'localhost:8000'
-SITE_ID = 1
+SITE_ID = 2
+
+# Security: Login attempt lockout settings
+LOGIN_LOCKOUT_THRESHOLD = 5  # Lock account after this many failed attempts
+LOGIN_LOCKOUT_DURATION = 30  # Lockout duration in minutes
+IP_LOCKOUT_THRESHOLD = 10  # Lock IP after this many failed attempts
+
+# Security: Session settings
+SESSION_COOKIE_SECURE = False  # Set to True in production with HTTPS
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True  # Session expires when browser closes
 
 # Logging Configuration
 LOGGING = {

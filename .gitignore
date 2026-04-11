@@ -22,7 +22,8 @@ media
 
 # C extensions
 *.so
-
+nul
+NUL
 # Distribution / packaging
 .Python
 build/
