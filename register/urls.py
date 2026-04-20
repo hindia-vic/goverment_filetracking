@@ -173,7 +173,7 @@ from register.calendar_views import file_calendar, api_file_calendar, toggle_the
 
 # Import advanced features
 from register.advanced_features import (
-    bulk_file_operation, export_files, export_requests,
+    bulk_file_operation, export_files, export_requests, export_activity,
     advanced_filter, activity_timeline, search_files,
     file_comparison, export_page
 )
@@ -189,6 +189,7 @@ urlpatterns += [
     path('bulk-operation/', bulk_file_operation, name='bulk_file_operation'),
     path('files/export/', export_files, name='export_files'),
     path('requests/export/', export_requests, name='export_requests'),
+    path('activity/export/', export_activity, name='export_activity'),
     path('advanced-filter/', advanced_filter, name='advanced_filter'),
     path('activity-timeline/', activity_timeline, name='activity_timeline'),
     path('search/', search_files, name='search_files'),

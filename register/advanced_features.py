@@ -7,7 +7,7 @@ from django.db.models import Q
 from datetime import datetime, timedelta
 import csv
 import io
-from reportlab.lib.pagesizes import A4, letter
+from reportlab.lib.pagesizes import A4, letter, landscape
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
@@ -366,6 +366,72 @@ def export_requests_excel(requests):
     response['Content-Disposition'] = f'attachment; filename="requests_{datetime.now().strftime("%Y%m%d")}.xlsx"'
     wb.save(response)
     return response
+
+
+@login_required
+def export_activity(request):
+    """Export activity log data"""
+    from register.models import ActivityLog
+    
+    days = int(request.GET.get('days', 30))
+    format_type = request.GET.get('format', 'csv')
+    
+    cutoff_date = timezone.now() - timezone.timedelta(days=days)
+    activities = ActivityLog.objects.filter(timestamp__gte=cutoff_date).select_related('user')[:10000]
+    
+    if format_type == 'pdf':
+        buffer = io.BytesIO()
+        doc = SimpleDocTemplate(buffer, pagesize=landscape(A4), topMargin=0.5*inch)
+        elements = []
+        
+        styles = getSampleStyleSheet()
+        elements.append(Paragraph(f"Activity Log - Last {days} Days", styles['Title']))
+        elements.append(Spacer(1, 0.25*inch))
+        
+        data = [['Date', 'User', 'Action', 'Description']]
+        for activity in activities:
+            data.append([
+                activity.timestamp.strftime('%Y-%m-%d %H:%M'),
+                activity.user.username if activity.user else 'System',
+                activity.get_action_display() if activity.action else activity.action,
+                activity.description[:50] + '...' if len(activity.description) > 50 else activity.description
+            ])
+        
+        table = Table(data, colWidths=[1.5*inch, 1*inch, 1.2*inch, 3.5*inch])
+        table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 10),
+            ('FONTSIZE', (0, 1), (-1, -1), 8),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+        ]))
+        elements.append(table)
+        
+        doc.build(elements)
+        buffer.seek(0)
+        response = HttpResponse(buffer, content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="activity_log_{datetime.now().strftime("%Y%m%d")}.pdf"'
+        return response
+    else:
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = f'attachment; filename="activity_log_{datetime.now().strftime("%Y%m%d")}.csv"'
+        
+        writer = csv.writer(response)
+        writer.writerow(['Date', 'User', 'Action', 'Description', 'IP Address'])
+        
+        for activity in activities:
+            writer.writerow([
+                activity.timestamp.strftime('%Y-%m-%d %H:%M:%S'),
+                activity.user.username if activity.user else 'System',
+                activity.get_action_display() if activity.action else activity.action,
+                activity.description,
+                activity.ip_address or ''
+            ])
+        
+        return response
 
 
 @login_required

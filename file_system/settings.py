@@ -245,6 +245,11 @@ EMAIL_HOST_PASSWORD =env('EMAIL_HOST_PASSWORD')
 
 DEFAULT_FROM_EMAIL = env('EMAIL_HOST_USER')
 
+# Task Queue Configuration
+TASK_QUEUE_ENABLED = env('TASK_QUEUE_ENABLED', default=False)
+TASK_QUEUE_BATCH_SIZE = 10
+TASK_QUEUE_WORKER_INTERVAL = 30  # seconds
+
 # Domain for password reset emails
 SITE_DOMAIN = 'localhost:8000'
 SITE_ID = 2

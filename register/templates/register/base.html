@@ -599,10 +599,10 @@
     </nav>
     
     <!-- Messages -->
-    {% if messages %}
+    {% if messages and not hide_base_messages %}
     <div class="container mt-3">
         {% for message in messages %}
-        <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+        <div class="alert alert-{{ message.tags }} mb-2" role="alert">
             {% if message.tags == 'success' %}
             <i class="bi bi-check-circle-fill me-2"></i>
             {% elif message.tags == 'error' %}
@@ -613,7 +613,6 @@
             <i class="bi bi-info-circle-fill me-2"></i>
             {% endif %}
             {{ message }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
         {% endfor %}
     </div>
@@ -682,7 +681,7 @@
     }
     
     // Toast notification system
-    function showToast(message, type = 'info', duration = 3000) {
+    function showToast(message, type = 'info', duration = 10000) {
         const container = document.getElementById('toastContainer');
         const toast = document.createElement('div');
         toast.className = `toast alert-${type} show`;
@@ -698,7 +697,7 @@
         
         setTimeout(() => {
             toast.remove();
-        }, duration);
+        }, 15000);
     }
     
     // Loading overlay
@@ -733,13 +732,14 @@
         }
     })();
     
+    <!--
     // Auto-hide alerts after 5 seconds
     document.querySelectorAll('.alert').forEach(function(alert) {
         setTimeout(function() {
             const bsAlert = new bootstrap.Alert(alert);
             bsAlert.close();
         }, 5000);
-    });
+    });-->
     
     // Confirm dialog for dangerous actions
     document.querySelectorAll('[data-confirm]').forEach(function(element) {

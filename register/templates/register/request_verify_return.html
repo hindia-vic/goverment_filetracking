@@ -2,99 +2,79 @@
 
 {% block title %}Verify File Return - File Tracking System{% endblock %}
 
+{% block extra_css %}
+<style>
+.alert-box {
+    padding: 15px;
+    border-radius: 5px;
+    margin-bottom: 15px;
+    border: 1px solid transparent;
+}
+.alert-box-info { background-color: #d1ecf1; border-color: #bee5eb; color: #0c5460; }
+.alert-box-primary { background-color: #dfeffd; border-color: #cce5ff; color: #004085; }
+.alert-box-warning { background-color: #fff3cd; border-color: #ffeeba; color: #856404; }
+.alert-box-secondary { background-color: #e2e3e5; border-color: #d6d8db; color: #383d41; }
+.alert-box-success { background-color: #d4edda; border-color: #c3e6cb; color: #155724; }
+.alert-box-danger { background-color: #f8d7da; border-color: #f5c6cb; color: #721c24; }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container">
     <div class="row justify-content-center">
         <div class="col-md-8">
             <div class="card shadow">
                 <div class="card-header bg-success text-white">
-                    <h4 class="mb-0">
-                        <i class="bi bi-check-circle"></i> Verify File Return
-                    </h4>
+                    <h4 class="mb-0"><i class="bi bi-check-circle"></i> Verify File Return</h4>
                 </div>
                 <div class="card-body">
                     {% if messages %}
                         {% for message in messages %}
-                            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                            <div class="alert-box alert-box-{% if message.tags == 'error' %}danger{% else %}{{ message.tags }}{% endif %}">
                                 {{ message }}
-                                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                             </div>
                         {% endfor %}
                     {% endif %}
                     
-                    <div class="alert alert-info">
-                        <h5 class="alert-heading">File Information</h5>
-                        <p class="mb-1"><strong>Reference:</strong> {{ file_request.file.reference }}</p>
-                        <p class="mb-1"><strong>Title:</strong> {{ file_request.file.title }}</p>
-                        <p class="mb-1"><strong>Department:</strong> {{ file_request.file.department.name }}</p>
-                        <p class="mb-1"><strong>File UUID:</strong> <code>{{ file_request.file.uuid }}</code></p>
+                    <div class="alert-box alert-box-info">
+                        <h5>File Information</h5>
+                        <p><strong>Reference:</strong> {{ file_request.file.reference }}</p>
+                        <p><strong>Title:</strong> {{ file_request.file.title }}</p>
+                        <p><strong>Department:</strong> {{ file_request.file.department.name }}</p>
                         <hr>
-                        <p class="mb-1"><strong>Returned By:</strong> {{ file_request.requesting_user.get_full_name|default:file_request.requesting_user.username }}</p>
-                        <p class="mb-1"><strong>Employee ID:</strong> {{ file_request.requesting_user.profile.employee_id }}</p>
-                        <p class="mb-0"><strong>User Department:</strong> {{ file_request.requesting_user.profile.department.name }}</p>
+                        <p><strong>Returned By:</strong> {{ file_request.requesting_user.get_full_name|default:file_request.requesting_user.username }}</p>
+                        <p><strong>Employee ID:</strong> {{ file_request.requesting_user.profile.employee_id }}</p>
+                        <p><strong>User Department:</strong> {{ file_request.requesting_user.profile.department.name }}</p>
                     </div>
                     
-                    {% if latest_version %}
-                    <div class="alert alert-primary">
-                        <h5 class="alert-heading">
-                            <i class="bi bi-file-earmark-text me-2"></i>Uploaded Document
-                        </h5>
-                        <p class="mb-1"><strong>Version:</strong> {{ latest_version.version_number }}</p>
-                        <p class="mb-1"><strong>Filename:</strong> {{ latest_version.original_filename|default:latest_version.file_attachment.name }}</p>
-                        <p class="mb-0"><strong>Uploaded:</strong> {{ latest_version.created_at|date:"F d, Y H:i" }}</p>
+                    {% if latest_version and latest_version.file_attachment %}
+                    <div class="alert-box alert-box-primary">
+                        <h5>Uploaded Document</h5>
+                        <p><strong>Version:</strong> {{ latest_version.version_number }}</p>
+                        <p><strong>Filename:</strong> {{ latest_version.original_filename|default:latest_version.file_attachment.name }}</p>
+                        <p><strong>Uploaded:</strong> {{ latest_version.created_at|date:"F d, Y H:i" }}</p>
                     </div>
                     
                     {% if qr_result %}
-                    <div class="alert {% if qr_result.matched %}alert-success{% elif qr_result.found %}alert-danger{% else %}alert-warning{% endif %}">
-                        <h5 class="alert-heading">
-                            <i class="bi {% if qr_result.matched %}bi-check-circle{% elif qr_result.found %}bi-x-circle{% else %}bi-exclamation-triangle{% endif %}"></i>
-                            QR Code Verification
-                        </h5>
-                        <p class="mb-1"><strong>Status:</strong> {{ qr_result.message }}</p>
+                    <div class="alert-box {% if qr_result.matched %}alert-box-success{% elif qr_result.found %}alert-box-danger{% else %}alert-box-warning{% endif %}">
+                        <h5>QR Code Verification</h5>
+                        <p><strong>Status:</strong> {{ qr_result.message }}</p>
                         {% if qr_result.qr_data %}
-                        <p class="mb-1"><strong>QR Data Found:</strong> <code>{{ qr_result.qr_data|truncatechars:50 }}</code></p>
+                        <p><strong>QR Data:</strong> <code>{{ qr_result.qr_data }}</code></p>
                         {% endif %}
-                        <p class="mb-0"><strong>Expected UUID:</strong> <code>{{ file_request.file.uuid }}</code></p>
-                        
-                        {% if qr_result.found and not qr_result.matched %}
-                        <hr>
-                        <div class="alert alert-danger mb-0">
-                            <strong><i class="bi bi-exclamation-octagon me-2"></i>WARNING:</strong>
-                            The uploaded document has a QR code but it does NOT match this file!
-                            This may be a different document. You should REJECT this return.
-                        </div>
-                        {% elif not qr_result.found %}
-                        <hr>
-                        <div class="alert alert-warning mb-0">
-                            <strong><i class="bi bi-exclamation-triangle me-2"></i>WARNING:</strong>
-                            No QR code found in the uploaded document.
-                            Please verify the document is correct before proceeding.
-                        </div>
-                        {% endif %}
-                    </div>
-                    {% else %}
-                    <div class="alert alert-info">
-                        <i class="bi bi-info-circle me-2"></i>
-                        <strong>QR Verification:</strong> The uploaded document will be scanned for QR code when you verify the return.
+                        <p><strong>Expected:</strong> <code>{{ file_request.file.uuid }}</code></p>
                     </div>
                     {% endif %}
+                    
                     {% else %}
-                    <div class="alert alert-warning">
-                        <h5 class="alert-heading">
-                            <i class="bi bi-exclamation-triangle me-2"></i>No Document Uploaded
-                        </h5>
-                        <p class="mb-0">This file return does not have an uploaded document. 
-                        Please verify with the user that they returned the correct physical file.
-                        {% if has_attachment %}
-                        <br><strong>Note:</strong> This file has a document attachment in the system. 
-                        The user should have uploaded the document when returning.
-                        {% endif %}
-                        </p>
+                    <div class="alert-box alert-box-warning">
+                        <h5>No Document Uploaded</h5>
+                        <p>No document has been uploaded for this return.</p>
                     </div>
                     {% endif %}
                     
                     {% if file_request.user_confirmation_notes %}
-                    <div class="alert alert-secondary">
+                    <div class="alert-box alert-box-secondary">
                         <strong>User Notes:</strong><br>
                         {{ file_request.user_confirmation_notes|linebreaks }}
                     </div>
@@ -104,11 +84,9 @@
                         {% csrf_token %}
                         
                         <div class="mb-3">
-                            <label for="condition" class="form-label">
-                                <strong>File Condition</strong> <span class="text-danger">*</span>
-                            </label>
-                            <select class="form-select" id="condition" name="condition" required>
-                                <option value="good" selected>Good Condition</option>
+                            <label class="form-label"><strong>File Condition</strong> <span class="text-danger">*</span></label>
+                            <select class="form-select" name="condition" required>
+                                <option value="good">Good Condition</option>
                                 <option value="damaged">Damaged</option>
                                 <option value="missing_pages">Missing Pages</option>
                                 <option value="other">Other</option>
@@ -116,48 +94,24 @@
                         </div>
                         
                         <div class="mb-3">
-                            <label for="notes" class="form-label">
-                                <strong>Notes</strong>
-                            </label>
-                            <textarea class="form-control" 
-                                      id="notes" 
-                                      name="notes" 
-                                      rows="3"
-                                      placeholder="Notes about the file condition..."></textarea>
+                            <label class="form-label"><strong>Notes</strong></label>
+                            <textarea class="form-control" name="notes" rows="3" placeholder="Notes about the file condition..."></textarea>
                         </div>
                         
-                        <div class="alert alert-warning">
-                            <i class="bi bi-info-circle me-2"></i>
-                            Confirming this return will:
-                            <ul class="mb-0 mt-2">
+                        <div class="alert-box alert-box-warning">
+                            <strong>Confirming this return will:</strong>
+                            <ul>
                                 <li>Mark the file as returned to registry</li>
                                 <li>Clear the current holder</li>
-                                <li>Notify the user that their return has been verified</li>
+                                <li>Notify the user</li>
                             </ul>
                         </div>
                         
-                        {% if qr_result and not qr_result.matched %}
-                        <div class="alert alert-warning border-warning">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="force_verify" id="force_verify">
-                                <label class="form-check-label" for="force_verify">
-                                    <strong>Force Verify</strong> - Check this to verify the return even if QR code doesn't match
-                                </label>
-                            </div>
-                        </div>
-                        {% endif %}
-                        
                         <div class="d-flex justify-content-between">
-                            <a href="{% url 'request_list' %}" class="btn btn-outline-secondary">
-                                <i class="bi bi-arrow-left"></i> Back to Requests
-                            </a>
+                            <a href="{% url 'request_list' %}" class="btn btn-outline-secondary">Back</a>
                             <div>
-                                <a href="{% url 'request_reject_return' file_request.pk %}" class="btn btn-danger">
-                                    <i class="bi bi-x-circle"></i> Reject Return
-                                </a>
-                                <button type="submit" class="btn btn-success">
-                                    <i class="bi bi-check-circle"></i> Verify Return
-                                </button>
+                                <a href="{% url 'request_reject_return' file_request.pk %}" class="btn btn-danger">Reject</a>
+                                <button type="submit" class="btn btn-success">Verify Return</button>
                             </div>
                         </div>
                     </form>

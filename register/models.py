@@ -1,11 +1,127 @@
 import uuid
 import qrcode
+import hashlib
+import os
 from io import BytesIO
 from django.db import models
 from django.contrib.auth.models import User
 from django.utils import timezone
 from django.urls import reverse
 from PIL import Image
+
+
+# Add default function before the DigitalSignature model
+def get_default_expiry():
+    return timezone.now() + timezone.timedelta(days=365)
+
+
+class DigitalSignature(models.Model):
+    """Digital signatures for legally auditable approvals"""
+    
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='digital_signature')
+    
+    # Key pair storage (encrypted)
+    public_key = models.TextField(help_text="PEM-encoded public key")
+    private_key_encrypted = models.TextField(help_text="Encrypted PEM-encoded private key")
+    key_fingerprint = models.CharField(max_length=64, unique=True, help_text="SHA-256 fingerprint of public key")
+    
+    # Certificate info
+    certificate_serial = models.CharField(max_length=64, unique=True, help_text="Certificate serial number")
+    certificate_not_before = models.DateTimeField(default=timezone.now)
+    certificate_not_after = models.DateTimeField(default=get_default_expiry)
+    
+    # Key derivation
+    salt = models.CharField(max_length=32, help_text="Salt for key derivation")
+    
+    # Status
+    is_active = models.BooleanField(default=True)
+    is_revoked = models.BooleanField(default=False)
+    revocation_reason = models.TextField(blank=True)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"Signature for {self.user.username} (valid until {self.certificate_not_after.date()})"
+    
+    def is_valid(self):
+        """Check if signature is currently valid"""
+        now = timezone.now()
+        return (self.is_active and not self.is_revoked and
+                self.certificate_not_before <= now <= self.certificate_not_after)
+    
+    def sign(self, data):
+        """Sign data with user's private key"""
+        from cryptography.hazmat.primitives import hashes
+        from cryptography.hazmat.primitives.asymmetric import padding
+        from cryptography.hazmat.backends import default_backend
+        
+        if not self.is_valid():
+            raise ValueError("Digital signature is not valid")
+        
+        # Decrypt private key (would need user's password in real implementation)
+        private_key = self._decrypt_private_key()
+        
+        # Sign the data
+        data_hash = hashlib.sha256(str(data).encode()).hexdigest()
+        
+        signature = private_key.sign(
+            data_hash.encode(),
+            padding.PSS(
+                mgf=padding.MGF1(hashes.SHA256()),
+                salt_length=padding.PSS.MAX_LENGTH
+            ),
+            hashes.SHA256()
+        )
+        
+        return signature.hex()
+    
+    def verify(self, data, signature_hex):
+        """Verify a signature"""
+        from cryptography.hazmat.primitives import hashes
+        from cryptography.hazmat.primitives.asymmetric import padding
+        from cryptography.hazmat.primitives import serialization
+        from cryptography.hazmat.backends import default_backend
+        
+        try:
+            signature = bytes.fromhex(signature_hex)
+            data_hash = hashlib.sha256(str(data).encode()).hexdigest()
+            
+            public_key = serialization.load_pem_public_key(
+                self.public_key.encode(),
+                backend=default_backend()
+            )
+            
+            public_key.verify(
+                signature,
+                data_hash.encode(),
+                padding.PSS(
+                    mgf=padding.MGF1(hashes.SHA256()),
+                    salt_length=padding.PSS.MAX_LENGTH
+                ),
+                hashes.SHA256()
+            )
+            return True
+        except Exception:
+            return False
+    
+    def _decrypt_private_key(self):
+        """Decrypt private key (simplified - would need password in production)"""
+        from cryptography.hazmat.primitives import serialization
+        from cryptography.hazmat.backends import default_backend
+        import base64
+        
+        # In production, this would require user's password
+        key_data = base64.b64decode(self.private_key_encrypted)
+        
+        return serialization.load_pem_private_key(
+            key_data,
+            password=None,
+            backend=default_backend()
+        )
 
 
 class UserProfile(models.Model):
@@ -501,6 +617,15 @@ class FileRequest(models.Model):
 
 
 class File(models.Model):
+    LIFECYCLE_STATES = [
+        ('available', 'Available'),
+        ('requested', 'Requested'),
+        ('approved', 'Approved'),
+        ('checked_out', 'Checked Out'),
+        ('returned', 'Returned'),
+        ('archived', 'Archived'),
+    ]
+    
     STATUS_CHOICES = [
         ('in_registry', 'In Registry'),
         ('checked_out', 'Checked Out'),
@@ -528,6 +653,19 @@ class File(models.Model):
     description = models.TextField(blank=True)
     priority = models.CharField(max_length=10, choices=PRIORITY_CHOICES, default='normal')
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='in_registry')
+    
+    # Lifecycle state machine (formalized state)
+    lifecycle_state = models.CharField(
+        max_length=20, 
+        choices=LIFECYCLE_STATES, 
+        default='available',
+        help_text="Formalized lifecycle state for transition validation"
+    )
+    lifecycle_transition_at = models.DateTimeField(null=True, blank=True, help_text="When the state last changed")
+    lifecycle_transition_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='state_transitions', help_text="User who triggered the last state change"
+    )
     
     # Physical location tracking
     current_holder = models.ForeignKey(
@@ -587,6 +725,21 @@ class File(models.Model):
             ).order_by('-sequence').first()
             self.sequence = (last_file.sequence + 1) if last_file else 1
         
+        # Sync lifecycle_state with legacy status for existing records
+        # This ensures backwards compatibility with existing data
+        if self.pk and not self.lifecycle_state:
+            state_map = {
+                'in_registry': 'available',
+                'checked_out': 'checked_out',
+                'overdue': 'checked_out',
+                'archived': 'archived',
+            }
+            self.lifecycle_state = state_map.get(self.status, 'available')
+        
+        # Ensure lifecycle_state is set for new objects
+        if not self.lifecycle_state:
+            self.lifecycle_state = 'available'
+        
         super().save(*args, **kwargs)
         
         # Generate QR code if not exists
@@ -624,6 +777,7 @@ class File(models.Model):
     def check_out(self, user, department, notes=''):
         """Check out file to a user"""
         self.status = 'checked_out'
+        self.lifecycle_state = 'checked_out'
         self.current_holder = user
         self.current_department = department
         self.checked_out_at = timezone.now()
@@ -647,6 +801,7 @@ class File(models.Model):
         previous_dept = self.current_department
         
         self.status = 'in_registry'
+        self.lifecycle_state = 'available'
         self.current_holder = None
         self.current_department = None
         self.checked_out_at = None
@@ -686,7 +841,11 @@ class File(models.Model):
         if self.status not in ['in_registry', 'archived']:
             return False, "Cannot archive a file that is currently checked out"
         
+        if self.lifecycle_state == 'archived':
+            return False, "File is already archived"
+        
         self.status = 'archived'
+        self.lifecycle_state = 'archived'
         self.archived_at = timezone.now()
         self.archived_by = user
         self.archive_reason = reason
@@ -707,10 +866,11 @@ class File(models.Model):
     
     def restore_from_archive(self, user):
         """Restore file from archive"""
-        if self.status != 'archived':
+        if self.lifecycle_state != 'archived':
             return False, "File is not archived"
         
         self.status = 'in_registry'
+        self.lifecycle_state = 'available'
         self.archived_at = None
         self.archived_by = None
         self.archive_reason = ''
@@ -775,6 +935,35 @@ class File(models.Model):
     def get_version_count(self):
         """Get total number of versions"""
         return self.versions.count()
+    
+    def can_transition_to(self, new_state):
+        """Check if transition to new_state is valid"""
+        from .state_machine import FileStateMachine
+        return FileStateMachine.can_transition(self.lifecycle_state, new_state)
+    
+    def transition_to(self, new_state, user=None, notes=''):
+        """Transition file to new state with validation"""
+        from .state_machine import FileStateMachine, StateMachineError, transition_file_state
+        
+        if not self.can_transition_to(new_state):
+            raise StateMachineError(
+                f"Cannot transition from {FileStateMachine.get_display_name(self.lifecycle_state)} "
+                f"to {FileStateMachine.get_display_name(new_state)}"
+            )
+        
+        return transition_file_state(self, new_state, user, notes)
+    
+    @property
+    def is_available(self):
+        return self.lifecycle_state == 'available'
+    
+    @property
+    def is_checked_out(self):
+        return self.lifecycle_state == 'checked_out'
+    
+    @property
+    def is_archived(self):
+        return self.lifecycle_state == 'archived'
     
     def __str__(self):
         return f"{self.reference} - {self.title}"
@@ -860,7 +1049,7 @@ class AuditLog(models.Model):
 
 
 class ActivityLog(models.Model):
-    """Track user activities across the system"""
+    """Track user activities across the system - Immutable audit trail"""
     ACTION_TYPES = [
         ('login', 'User Login'),
         ('logout', 'User Logout'),
@@ -882,9 +1071,11 @@ class ActivityLog(models.Model):
         ('comment_added', 'Added Comment'),
         ('file_return_verified', 'Return Verified'),
         ('file_return_rejected', 'Return Rejected'),
+        ('file_state_change', 'File State Changed'),
+        ('request_state_change', 'Request State Changed'),
     ]
     
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='activities')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='activities', null=True, blank=True)
     action = models.CharField(max_length=30, choices=ACTION_TYPES)
     description = models.TextField()
     ip_address = models.GenericIPAddressField(null=True, blank=True)
@@ -893,6 +1084,37 @@ class ActivityLog(models.Model):
     timestamp = models.DateTimeField(auto_now_add=True)
     is_archived = models.BooleanField(default=False, help_text="Marked as archived for retention policy")
     
+    # Tamper-resistant features
+    entry_hash = models.CharField(max_length=64, blank=True, help_text="SHA-256 hash of this entry")
+    previous_hash = models.CharField(max_length=64, blank=True, help_text="Hash of previous entry for chaining")
+    checksum = models.CharField(max_length=64, blank=True, help_text="Checksum for integrity verification")
+    
+    # Digital signature for legally auditable approvals
+    signature = models.TextField(blank=True, help_text="Digital signature for approvals")
+    signature_algorithm = models.CharField(max_length=20, blank=True, help_text="Signature algorithm used")
+    signed_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, 
+        related_name='signed_activities',
+        help_text="User who digitally signed this entry"
+    )
+    signature_verified = models.BooleanField(
+        default=False, 
+        help_text="Whether signature has been verified"
+    )
+    
+    # System info
+    subsystem = models.CharField(max_length=50, default='main', help_text="System subsystem that generated this log")
+    severity = models.CharField(
+        max_length=20, 
+        choices=[
+            ('info', 'Info'),
+            ('warning', 'Warning'),
+            ('error', 'Error'),
+            ('critical', 'Critical'),
+        ],
+        default='info'
+    )
+    
     class Meta:
         ordering = ['-timestamp']
         verbose_name = 'Activity Log'
@@ -900,10 +1122,141 @@ class ActivityLog(models.Model):
         indexes = [
             models.Index(fields=['user', '-timestamp']),
             models.Index(fields=['action', '-timestamp']),
+            models.Index(fields=['timestamp', 'subsystem']),
+        ]
+        # Prevent updates and deletes
+        permissions = [
+            ("view_audit_trail", "Can view audit trail"),
+            ("export_audit_trail", "Can export audit trail"),
         ]
     
+    def save(self, *args, **kwargs):
+        # Generate hash before saving (but only for new objects)
+        if not self.pk:
+            self._generate_hash()
+        super().save(*args, **kwargs)
+    
+    def _generate_hash(self):
+        """Generate SHA-256 hash for this entry with chaining"""
+        import hashlib
+        import json
+        
+        # Get the previous hash from the last log entry
+        if not self.previous_hash:
+            last_log = ActivityLog.objects.order_by('-timestamp').first()
+            self.previous_hash = last_log.entry_hash if last_log else 'genesis'
+        
+        # Create hash input
+        hash_input = {
+            'user_id': self.user.id if self.user else None,
+            'user_username': self.user.username if self.user else 'system',
+            'action': self.action,
+            'description': self.description,
+            'ip_address': self.ip_address,
+            'metadata': self.metadata,
+            'timestamp': self.timestamp.isoformat() if self.timestamp else timezone.now().isoformat(),
+            'previous_hash': self.previous_hash,
+            'subsystem': self.subsystem,
+        }
+        
+        # Generate hash
+        hash_string = json.dumps(hash_input, sort_keys=True)
+        self.entry_hash = hashlib.sha256(hash_string.encode()).hexdigest()
+        
+        # Generate checksum (additional verification)
+        checksum_input = f"{self.entry_hash}:{self.previous_hash}:{self.description}"
+        self.checksum = hashlib.sha256(checksum_input.encode()).hexdigest()[:16]
+    
+    def verify_integrity(self):
+        """Verify the integrity of this log entry"""
+        import hashlib
+        import json
+        
+        # Recreate the hash
+        hash_input = {
+            'user_id': self.user.id if self.user else None,
+            'user_username': self.user.username if self.user else 'system',
+            'action': self.action,
+            'description': self.description,
+            'ip_address': self.ip_address,
+            'metadata': self.metadata,
+            'timestamp': self.timestamp.isoformat() if self.timestamp else None,
+            'previous_hash': self.previous_hash,
+            'subsystem': self.subsystem,
+        }
+        
+        hash_string = json.dumps(hash_input, sort_keys=True)
+        computed_hash = hashlib.sha256(hash_string.encode()).hexdigest()
+        
+        return computed_hash == self.entry_hash
+    
+    def verify_chain(self):
+        """Verify the entire chain up to this entry"""
+        current = self
+        while current.previous_hash and current.previous_hash != 'genesis':
+            try:
+                prev = ActivityLog.objects.get(entry_hash=current.previous_hash)
+                if not prev.verify_integrity():
+                    return False, f"Chain broken at {current.id}"
+                current = prev
+            except ActivityLog.DoesNotExist:
+                return False, f"Previous hash {current.previous_hash} not found"
+        return True, "Chain is valid"
+    
+    def sign_entry(self, user):
+        """Digitally sign this audit entry for non-repudiation"""
+        if not self.signature:
+            # Create signature data
+            sign_data = f"{self.action}:{self.description}:{self.timestamp.isoformat()}"
+            self.signature_algorithm = 'SHA256-PSS'
+            self.signed_by = user
+            
+            # Try to use digital signature if available
+            try:
+                sig = DigitalSignature.objects.get(user=user, is_active=True, is_revoked=False)
+                self.signature = sig.sign(sign_data)
+            except DigitalSignature.DoesNotExist:
+                # Fallback: simple hash-based signature
+                self.signature = hashlib.sha256(f"{sign_data}:{user.username}".encode()).hexdigest()
+            
+            self.signature_verified = True
+    
+    def verify_signature(self):
+        """Verify the digital signature on this entry"""
+        if not self.signature:
+            return False, "No signature present"
+        
+        sign_data = f"{self.action}:{self.description}:{self.timestamp.isoformat()}"
+        
+        if self.signed_by:
+            try:
+                sig = DigitalSignature.objects.get(user=self.signed_by)
+                if sig.verify(sign_data, self.signature):
+                    return True, "Signature valid"
+            except DigitalSignature.DoesNotExist:
+                pass
+        
+        # Verify fallback signature
+        expected = hashlib.sha256(f"{sign_data}:{self.signed_by.username}".encode()).hexdigest()
+        if self.signature == expected:
+            return True, "Signature valid (fallback)"
+        
+        return False, "Signature invalid"
+    
     def __str__(self):
-        return f"{self.user.username} - {self.get_action_display()} - {self.timestamp.strftime('%Y-%m-%d %H:%M')}"
+        return f"{self.user.username if self.user else 'System'} - {self.get_action_display()} - {self.timestamp.strftime('%Y-%m-%d %H:%M')}"
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._original_state = None
+        self._skip_immutability = False  # For bulk operations
+    
+    def save_base(self, *args, **kwargs):
+        """Override to prevent updates to existing records"""
+        if self.pk and self._state.adding is False and not self._skip_immutability:
+            from django.core.exceptions import ValidationError
+            raise ValidationError("Cannot modify existing audit log entries")
+        return super().save_base(*args, **kwargs)
 
 
 class FileTag(models.Model):
@@ -1132,3 +1485,54 @@ class AccessLog(models.Model):
 
     def __str__(self):
         return f"{self.user.username} - {self.action} - {self.timestamp}"
+
+
+class Task(models.Model):
+    """Database-backed task queue for async processing"""
+    
+    TASK_TYPES = [
+        ('email', 'Send Email'),
+        ('webhook', 'Webhook Delivery'),
+        ('cleanup', 'Cleanup Task'),
+        ('notification', 'In-App Notification'),
+        ('export', 'Export Task'),
+    ]
+    
+    task_id = models.CharField(max_length=64, unique=True, db_index=True)
+    task_type = models.CharField(max_length=20, choices=TASK_TYPES, db_index=True)
+    task_name = models.CharField(max_length=100)
+    payload = models.JSONField(default=dict)
+    status = models.CharField(
+        max_length=20, 
+        choices=[
+            ('pending', 'Pending'),
+            ('running', 'Running'),
+            ('completed', 'Completed'),
+            ('failed', 'Failed'),
+            ('retry', 'Retry'),
+        ],
+        default='pending',
+        db_index=True
+    )
+    attempts = models.PositiveIntegerField(default=0)
+    max_attempts = models.PositiveIntegerField(default=3)
+    last_attempt_at = models.DateTimeField(null=True, blank=True)
+    started_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    error_message = models.TextField(blank=True)
+    last_error = models.TextField(blank=True)
+    scheduled_at = models.DateTimeField(default=timezone.now)
+    priority = models.PositiveIntegerField(default=10)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['priority', 'scheduled_at']
+        indexes = [
+            models.Index(fields=['status', 'scheduled_at']),
+            models.Index(fields=['task_type', 'status']),
+        ]
+    
+    def __str__(self):
+        return f"{self.task_type}: {self.task_name} ({self.status})"

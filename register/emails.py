@@ -6,8 +6,29 @@ from django.conf import settings
 from django.template.loader import render_to_string
 from django.utils.html import strip_tags
 from django.contrib.auth import get_user_model
+from django.utils import timezone
 
 User = get_user_model()
+
+
+def send_async_email(recipient_email, subject, content):
+    """
+    Send email asynchronously using task queue if enabled.
+    Falls back to synchronous sending if not enabled.
+    """
+    from django.conf import settings
+    
+    if getattr(settings, 'TASK_QUEUE_ENABLED', False):
+        try:
+            from register.task_queue import queue_email
+            queue_email(recipient_email, subject, content)
+            return True
+        except Exception as e:
+            # Fall back to sync if queue fails
+            print(f"Task queue failed, using sync: {e}")
+    
+    # Synchronous fallback
+    return send_email_with_template(subject, content, [recipient_email])
 
 
 def get_html_email_context(site_name="File Tracking System"):
@@ -366,7 +387,7 @@ def send_return_pending_notification(file_request):
     
     # Get all registry and admin users
     recipients = User.objects.filter(
-        profiles__role__in=['registry', 'admin']
+        profile__role__in=['registry', 'admin']
     ) | User.objects.filter(is_superuser=True)
     
     recipient_emails = [u.email for u in recipients.distinct() if u.email]

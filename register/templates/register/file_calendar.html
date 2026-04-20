@@ -1,15 +1,18 @@
 {% extends 'register/base.html' %}
-{% load calendar_tags %}
 
 {% block title %}File Calendar - {{ month_name }} {{ year }}{% endblock %}
 
 {% block content %}
+{% load calendar_tags %}
+
+{% regroup events by created_at.date as events_by_date %}
+
 <div class="row">
     <div class="col-12">
         <div class="card border-0 shadow-sm">
             <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
                 <h4 class="mb-0">
-                    <i class="bi bi-calendar3 me-2"></i>File Availability Calendar
+                    <i class="bi bi-calendar3 me-2"></i>File Calendar
                 </h4>
 
                 <div class="d-flex align-items-center gap-2">
@@ -56,32 +59,27 @@
                                         <!-- Day Number -->
                                         <div class="fw-bold mb-1">{{ day }}</div>
 
-                                        <!-- Correct Date Key -->
-                                        {% with date_key=year|stringformat:"s"|add:"-"|add:month|stringformat:"02d"|add:"-"|add:day|stringformat:"02d" %}
-                                            
-                                            {% if date_key in events_by_date %}
-                                                {% for event in events_by_date|get_item:date_key %}
-                                                
+                                        <!-- Events for this day -->
+                                        {% for event_group in events_by_date %}
+                                            {% if event_group.grouper.day == day and event_group.grouper.month == month and event_group.grouper.year == year %}
+                                                {% for event in event_group.list %}
                                                 <div class="badge 
-                                                    {% if event.type == 'checkout' %}
+                                                    {% if event.action == 'checkout' %}
                                                         bg-warning text-dark
-                                                    {% elif event.type == 'checkin' %}
+                                                    {% elif event.action == 'checkin' %}
                                                         bg-success
-                                                    {% elif event.type == 'due' %}
-                                                        bg-danger
-                                                    {% else %}
+                                                    {% elif event.action == 'transfer' %}
                                                         bg-info
+                                                    {% else %}
+                                                        bg-secondary
                                                     {% endif %}
                                                     mb-1 d-block text-wrap"
                                                     style="font-size: 10px;">
-                                                    
-                                                    {{ event.title }}
+                                                    {{ event.file.reference }}
                                                 </div>
-
                                                 {% endfor %}
                                             {% endif %}
-
-                                        {% endwith %}
+                                        {% endfor %}
                                     {% endif %}
 
                                 </td>
@@ -95,23 +93,7 @@
         </div>
     </div>
 </div>
-
-<!-- Overdue Files Section -->
-{% if overdue_files %}
-<div class="row mt-4">
-    <div class="col-12">
-        <div class="card border-0 shadow-sm">
-            <div class="card-header bg-danger bg-opacity-10">
-                <h5 class="mb-0">
-                    <i class="bi bi-exclamation-triangle text-danger me-2"></i>
-                    Overdue Files
-                </h5>
-            </div>
-
-            <div class="card-body">
-                <div class="table-responsive">
-                    <table class="table table-sm">
-                        <thead>
+{% endblock %}
                             <tr>
                                 <th>Reference</th>
                                 <th>Title</th>

@@ -15,6 +15,7 @@ from django.db.models import Q, Count
 from django.http import HttpResponseNotFound
 from django.core.files.storage import FileSystemStorage
 from django.core.paginator import Paginator
+from django.core.exceptions import ValidationError
 from django.contrib.auth.forms import PasswordChangeForm
 from django.urls import reverse_lazy, reverse
 from django.contrib.messages.views import SuccessMessageMixin
@@ -27,6 +28,11 @@ from reportlab.pdfgen import canvas
 
 from .models import File, FileMovement, Department, UserProfile, Notification, FileRequest, ActivityLog, FileVersion, FileTag, FileComment
 from django.contrib.auth.models import User
+from django.db import transaction
+from .concurrency import (
+    safe_file_request, safe_request_approve, safe_request_reject,
+    safe_file_handover, safe_file_return, ConcurrentModificationError
+)
 from .forms import (
     FileUploadForm, CheckoutForm, CheckinForm, AuditFilterForm,
     UserRegistrationForm, UserProfileForm, DepartmentForm,
@@ -256,29 +262,35 @@ class FileRequestCreateView(LoginRequiredMixin, View):
             return redirect('file_detail', uuid=uuid)
         
         if form.is_valid():
-            # Create the file request
-            file_request = FileRequest.objects.create(
-                file=file,
-                requesting_user=request.user,
-                requesting_department=request.user.profile.department if hasattr(request.user, 'profile') else None,
-                purpose=form.cleaned_data['purpose'],
-                status='pending'
-            )
-            
-            # Send notification to all registry officers
-            registry_profiles = UserProfile.objects.filter(role='registry', is_active=True)
-            for profile in registry_profiles:
-                Notification.objects.create(
+            try:
+                # Use safe file request with concurrency control
+                file_request = safe_file_request(
                     file=file,
-                    recipient=profile.user,
-                    sender=request.user,
-                    notification_type='checkout_request',
-                    title=f'Checkout Request - {file.reference}',
-                    message=f'{request.user.get_full_name()} has requested file {file.reference}. Purpose: {form.cleaned_data["purpose"]}'
+                    user=request.user,
+                    purpose=form.cleaned_data['purpose']
                 )
-            
-            messages.success(request, 'Your request has been submitted. You will be notified when ready for pickup.')
-            return redirect('file_detail', uuid=uuid)
+                
+                # Send notification to all registry officers
+                registry_profiles = UserProfile.objects.filter(role='registry', is_active=True)
+                for profile in registry_profiles:
+                    Notification.objects.create(
+                        file=file,
+                        recipient=profile.user,
+                        sender=request.user,
+                        notification_type='checkout_request',
+                        title=f'Checkout Request - {file.reference}',
+                        message=f'{request.user.get_full_name()} has requested file {file.reference}. Purpose: {form.cleaned_data["purpose"]}'
+                    )
+                
+                messages.success(request, 'Your request has been submitted. You will be notified when ready for pickup.')
+                return redirect('file_detail', uuid=uuid)
+                
+            except ValidationError as e:
+                messages.error(request, str(e))
+                return redirect('file_detail', uuid=uuid)
+            except ConcurrentModificationError as e:
+                messages.error(request, str(e))
+                return redirect('file_detail', uuid=uuid)
         
         return render(request, self.template_name, {'file': file, 'form': form})
 
@@ -380,19 +392,26 @@ class FileRequestProcessView(LoginRequiredMixin, View):
             notes = form.cleaned_data.get('notes', '')
             pickup_date = form.cleaned_data.get('pickup_date')
             
-            if action == 'approve':
-                file_request.approve(
-                    processed_by=request.user,
-                    pickup_date=pickup_date,
-                    notes=notes
-                )
-                messages.success(request, f'Request approved. User has been notified.')
-            else:
-                file_request.reject(
-                    processed_by=request.user,
-                    reason=notes
-                )
-                messages.success(request, 'Request rejected. User has been notified.')
+            try:
+                if action == 'approve':
+                    safe_request_approve(
+                        request_obj=file_request,
+                        processed_by=request.user,
+                        pickup_date=pickup_date,
+                        notes=notes
+                    )
+                    messages.success(request, f'Request approved. User has been notified.')
+                else:
+                    safe_request_reject(
+                        request_obj=file_request,
+                        processed_by=request.user,
+                        reason=notes
+                    )
+                    messages.success(request, 'Request rejected. User has been notified.')
+            except ValidationError as e:
+                messages.error(request, str(e))
+            except ConcurrentModificationError as e:
+                messages.error(request, str(e))
             
             return redirect('request_list')
         
@@ -441,13 +460,18 @@ class FileRequestHandoverView(LoginRequiredMixin, View):
                 messages.error(request, 'Invalid confirmation code.')
                 return render(request, self.template_name, {'file_request': file_request, 'form': form})
             
-            # Mark as handed over - file stays in registry until user confirms receipt
-            file_request.mark_handed_over(
-                processed_by=request.user,
-                notes=form.cleaned_data.get('notes', '')
-            )
+            try:
+                safe_file_handover(
+                    request_obj=file_request,
+                    processed_by=request.user,
+                    notes=form.cleaned_data.get('notes', '')
+                )
+                messages.success(request, 'File handed over successfully. User has been notified to confirm receipt.')
+            except ValidationError as e:
+                messages.error(request, str(e))
+            except ConcurrentModificationError as e:
+                messages.error(request, str(e))
             
-            messages.success(request, 'File handed over successfully. User has been notified to confirm receipt.')
             return redirect('request_list')
         
         return render(request, self.template_name, {'file_request': file_request, 'form': form})
@@ -647,18 +671,21 @@ class FileReturnVerifyView(LoginRequiredMixin, View):
         try:
             file_request = FileRequest.objects.get(pk=pk, status='pending_return')
         except FileRequest.DoesNotExist:
-            # Check if the request exists at all
             if FileRequest.objects.filter(pk=pk).exists():
-                messages.error(request, 'This request cannot be verified for return. It may have already been processed.')
+                messages.error(request, 'This request cannot be verified for return.')
             else:
                 messages.error(request, 'File request not found.')
             return redirect('request_list')
-        except FileRequest.MultipleObjectsReturned:
-            messages.error(request, 'An error occurred. Multiple requests found.')
-            return redirect('request_list')
         
-        # Check if there's a new version with attachment
+        # Get latest version
         latest_version = file_request.file.versions.filter(file_attachment__isnull=False).order_by('-created_at').first()
+        
+        # Debug: print version info
+        import logging
+        _logger = logging.getLogger(__name__)
+        _logger.info(f"File: {file_request.file.reference}, Versions count: {file_request.file.versions.count()}")
+        if latest_version:
+            _logger.info(f"Latest version: {latest_version.id}, has attachment: {bool(latest_version.file_attachment)}")
         
         # Get QR scan result if attachment exists
         qr_result = None
@@ -670,7 +697,6 @@ class FileReturnVerifyView(LoginRequiredMixin, View):
                     latest_version.file_attachment.path,
                     expected_qr_data
                 )
-                # Add the expected UUID to the result for display
                 qr_result['expected_uuid'] = expected_qr_data
             except Exception as e:
                 qr_result = {
@@ -679,18 +705,24 @@ class FileReturnVerifyView(LoginRequiredMixin, View):
                     'qr_data': None,
                     'message': f'Error scanning PDF: {str(e)}',
                     'expected_uuid': str(file_request.file.uuid),
-                    'error': str(e)
                 }
         
         # Check if file has any attachment
         has_attachment = file_request.file.file_attachment or file_request.file.versions.filter(file_attachment__isnull=False).exists()
         
-        return render(request, self.template_name, {
+        context = {
             'file_request': file_request,
             'latest_version': latest_version,
             'qr_result': qr_result,
             'has_attachment': has_attachment
-        })
+        }
+        
+        response = render(request, self.template_name, context)
+        # Prevent browser caching
+        response['Cache-Control'] = 'no-store, no-cache, must-revalidate'
+        response['Pragma'] = 'no-cache'
+        response['Expires'] = '0'
+        return response
     
     def post(self, request, pk):
         # Only registry/admin can verify returns
@@ -767,13 +799,19 @@ class FileReturnVerifyView(LoginRequiredMixin, View):
                 messages.warning(request, f'QR scanning failed: {str(e)}. Please verify document manually.')
         
         # Verify the return
-        file_request.verify_return(
-            verified_by=request.user,
-            condition=condition,
-            notes=notes
-        )
+        try:
+            safe_file_return(
+                request_obj=file_request,
+                verified_by=request.user,
+                condition=condition,
+                notes=notes
+            )
+            messages.success(request, f'File return verified! File {file_request.file.reference} is now back in registry.')
+        except ValidationError as e:
+            messages.error(request, str(e))
+        except ConcurrentModificationError as e:
+            messages.error(request, str(e))
         
-        messages.success(request, f'File return verified! File {file_request.file.reference} is now back in registry.')
         return redirect('request_list')
 
 
@@ -889,6 +927,32 @@ class FileDetailView(LoginRequiredMixin, DetailView):
         context['movements'] = self.object.movements.select_related('from_user', 'to_user', 'from_department', 'to_department')[:20]
         context['is_overdue'] = self.object.is_overdue()
         
+        # Check if current user has permission to preview
+        can_preview = False
+        user = self.request.user
+        
+        if user.is_authenticated:
+            # Admin/registry has full access
+            if user.is_superuser:
+                can_preview = True
+            elif hasattr(user, 'profile') and user.profile.role in ['registry', 'admin']:
+                can_preview = True
+            # Creator can always preview
+            elif self.object.created_by == user:
+                can_preview = True
+            # Current holder can preview
+            elif self.object.current_holder == user:
+                can_preview = True
+            # User must have confirmed receipt to preview
+            elif FileRequest.objects.filter(
+                file=self.object,
+                requesting_user=user,
+                status__in=['confirmed', 'pending_return']
+            ).exists():
+                can_preview = True
+        
+        context['can_preview'] = can_preview
+        
         # Check if current user has an active request for this file
         if self.request.user.is_authenticated:
             active_request = self.object.checkout_requests.filter(
@@ -943,8 +1007,11 @@ class CheckoutView(LoginRequiredMixin, View):
     def get(self, request, uuid):
         file = get_object_or_404(File, uuid=uuid)
         
-        if file.status != 'in_registry':
-            messages.error(request, f'File is currently {file.get_status_display()}. Cannot check out.')
+        # Use state machine validation
+        if not file.can_transition_to('checked_out'):
+            from register.state_machine import FileStateMachine
+            current_state = FileStateMachine.get_display_name(file.lifecycle_state)
+            messages.error(request, f'File is currently {current_state}. Cannot check out.')
             return redirect('file_detail', uuid=uuid)
         
         form = CheckoutForm()
@@ -955,6 +1022,14 @@ class CheckoutView(LoginRequiredMixin, View):
     
     def post(self, request, uuid):
         file = get_object_or_404(File, uuid=uuid)
+        
+        # Use state machine validation
+        if not file.can_transition_to('checked_out'):
+            from register.state_machine import FileStateMachine
+            current_state = FileStateMachine.get_display_name(file.lifecycle_state)
+            messages.error(request, f'File is currently {current_state}. Cannot check out.')
+            return redirect('file_detail', uuid=uuid)
+        
         form = CheckoutForm(request.POST)
         
         if form.is_valid():
@@ -976,12 +1051,18 @@ class CheckoutView(LoginRequiredMixin, View):
                 signed_at=timezone.now()
             )
             
-            # Update file status
+            # Update file status using state machine
             file.check_out(
                 user=request.user,
                 department=form.cleaned_data['department'],
                 notes=movement.notes
             )
+            
+            # Transition state
+            try:
+                file.transition_to('checked_out', user=request.user, notes='Direct checkout')
+            except Exception as e:
+                _logger.warning(f"State transition failed: {e}")
             
             messages.success(
                 request, 
@@ -1261,6 +1342,32 @@ class FilePreviewView(LoginRequiredMixin, View):
         
         if not file.file_attachment:
             return HttpResponseNotFound("No file attachment found")
+        
+        # Check if user has permission to preview
+        has_permission = False
+        
+        # Admin/registry has full access
+        if request.user.is_superuser:
+            has_permission = True
+        elif hasattr(request.user, 'profile') and request.user.profile.role in ['registry', 'admin']:
+            has_permission = True
+        # Creator can always preview
+        elif file.created_by == request.user:
+            has_permission = True
+        # Current holder can preview
+        elif file.current_holder == request.user:
+            has_permission = True
+        # User must have confirmed receipt to preview
+        elif FileRequest.objects.filter(
+            file=file,
+            requesting_user=request.user,
+            status__in=['confirmed', 'pending_return']
+        ).exists():
+            has_permission = True
+        
+        if not has_permission:
+            messages.error(request, 'You do not have permission to preview this file.')
+            return redirect('file_detail', uuid=uuid)
         
         # Open and serve the file
         try:
@@ -1753,11 +1860,15 @@ def version_download(request, uuid, version_id):
         latest_version = file.versions.first()
         if latest_version and latest_version.id == version.id:
             has_permission = True
-    # User with approved request can get latest version
+    # User must have CONFIRMED receipt before they can download
+    # Status 'ready_for_pickup' = approved but not yet handed over
+    # Status 'handed_over' = handed to user but not yet confirmed
+    # Status 'confirmed' = user confirmed receipt, can now download
+    # Status 'pending_return' = user initiated return, can still access
     elif FileRequest.objects.filter(
         file=file,
         requesting_user=request.user,
-        status__in=['ready_for_pickup', 'handed_over', 'confirmed', 'pending_return']
+        status__in=['confirmed', 'pending_return']
     ).exists():
         latest_version = file.versions.first()
         if latest_version and latest_version.id == version.id:
@@ -2184,11 +2295,13 @@ def file_download(request, uuid):
     if file.current_holder == request.user:
         has_permission = True
     
-    # User has approved request (active - can get latest version)
+    # User must have confirmed receipt before they can download
+    # Only 'confirmed' (user confirmed they received the file) and 
+    # 'pending_return' (initiated return) allow download
     elif FileRequest.objects.filter(
         file=file,
         requesting_user=request.user,
-        status__in=['ready_for_pickup', 'handed_over', 'confirmed', 'pending_return']
+        status__in=['confirmed', 'pending_return']
     ).exists():
         has_permission = True
     

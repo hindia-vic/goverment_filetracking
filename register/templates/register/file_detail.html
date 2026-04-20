@@ -194,8 +194,8 @@
                     {% endif %}
                     {% endif %}
                     
-                    <!-- Preview File Button -->
-                    {% if file.file_attachment %}
+                    <!-- Preview File Button - only if user has permission -->
+                    {% if file.file_attachment and can_preview %}
                     <div class="col-md-4 mt-2">
                         <button type="button" class="btn btn-info w-100" data-bs-toggle="modal" data-bs-target='#previewModal-{{ file.uuid }}'>
                             <i class="bi bi-eye me-1"></i>Preview File
